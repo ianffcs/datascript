@@ -3,7 +3,8 @@
     [clojure.string :as str]
     [datascript.db :as db]
     [datascript.impl.entity :as de]
-    [datascript.util :as util]))
+    [datascript.util :as util]
+    #?(:cljd ["dart:math" :as Math])))
 
 (defn- -differ? [& xs]
   (let [l (count xs)]
@@ -33,7 +34,7 @@
 (defn- and-fn [& args]
   (reduce (fn [a b]
             (if b b (reduced b))) true args))
-            
+
 (defn- or-fn [& args]
   (reduce (fn [a b]
             (if b (reduced b) b)) nil args))
@@ -87,8 +88,8 @@
    'rand rand, 'rand-int rand-int,
    'true? true?, 'false? false?, 'nil? nil?, 'some? some?, 'not not, 'and and-fn, 'or or-fn,
    'complement complement, 'identical? identical?,
-   'identity identity, 'keyword keyword, 'meta meta, 'name name, 'namespace namespace, 'type type,
-   'vector vector, 'list list, 'set set, 'hash-map hash-map, 'array-map array-map,
+   'identity identity, 'keyword keyword, 'meta meta, 'name name, 'namespace namespace, #?@(:cljd [] :default ['type type]),
+   'vector vector, 'list list, 'set set, 'hash-map hash-map, #?@(:cljd [] :default ['array-map array-map]),
    'count count, 'range range, 'not-empty not-empty, 'empty? empty?, 'contains? contains?,
    'str str, 'subs, subs, 'get get,
    'pr-str pr-str, 'print-str print-str, 'println-str println-str, 'prn-str prn-str,
@@ -124,7 +125,7 @@
     (/ sum (count coll))))
 
 (defn- aggregate-stddev [coll]
-  (#?(:cljs js/Math.sqrt :clj Math/sqrt) (aggregate-variance coll)))
+  (#?(:cljs js/Math.sqrt :default Math/sqrt) (aggregate-variance coll)))
 
 (defn- aggregate-min
   ([coll]

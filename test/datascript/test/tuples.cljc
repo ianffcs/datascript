@@ -1,9 +1,12 @@
 (ns datascript.test.tuples
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
+    #?(:cljd [cljd.test    :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])
+    #?(:cljd [cljd.core :refer [ExceptionInfo]])
     [datascript.core :as d]
-    [datascript.test.core :as tdc])
-  #?(:clj
+    [datascript.test.core :as tdc :refer [#?(:cljd thrown-msg?)]])
+  #?(:cljd nil
+     :clj
      (:import
        [clojure.lang ExceptionInfo])))
 
@@ -138,8 +141,10 @@
                                    :db/unique :db.unique/identity}})]
     (d/transact! conn [[:db/add 1 :a "a"]])
     (d/transact! conn [[:db/add 2 :a "A"]])
-    (is (thrown-with-msg? ExceptionInfo #"Cannot add .* because of unique constraint: .*"
-          (d/transact! conn [[:db/add 1 :a "A"]])))
+    (is #?(:cljd (thrown-msg? #"Cannot add .* because of unique constraint: .*"
+                  (d/transact! conn [[:db/add 1 :a "A"]]))
+           :default (thrown-with-msg? ExceptionInfo #"Cannot add .* because of unique constraint: .*"
+                      (d/transact! conn [[:db/add 1 :a "A"]]))))
 
     (d/transact! conn [[:db/add 1 :b "b"]
                        [:db/add 2 :b "b"]
@@ -156,13 +161,20 @@
              [3 :a+b ["a" "B"]]}
           (tdc/all-datoms (d/db conn))))
 
-    (is (thrown-with-msg? ExceptionInfo #"Cannot add .* because of unique constraint: .*"
-          (d/transact! conn [[:db/add 1 :a "A"]])))
-    (is (thrown-with-msg? ExceptionInfo #"Cannot add .* because of unique constraint: .*"
-          (d/transact! conn [[:db/add 1 :b "B"]])))
-    (is (thrown-with-msg? ExceptionInfo #"Cannot add .* because of unique constraint: .*"
-          (d/transact! conn [[:db/add 1 :a "A"]
-                             [:db/add 1 :b "B"]])))
+    (is #?(:cljd (thrown-msg? #"Cannot add .* because of unique constraint: .*"
+                  (d/transact! conn [[:db/add 1 :a "A"]]))
+           :default (thrown-with-msg? ExceptionInfo #"Cannot add .* because of unique constraint: .*"
+                      (d/transact! conn [[:db/add 1 :a "A"]]))))
+    (is #?(:cljd (thrown-msg? #"Cannot add .* because of unique constraint: .*"
+                  (d/transact! conn [[:db/add 1 :b "B"]]))
+           :default (thrown-with-msg? ExceptionInfo #"Cannot add .* because of unique constraint: .*"
+                      (d/transact! conn [[:db/add 1 :b "B"]]))))
+    (is #?(:cljd (thrown-msg? #"Cannot add .* because of unique constraint: .*"
+                  (d/transact! conn [[:db/add 1 :a "A"]
+                                     [:db/add 1 :b "B"]]))
+           :default (thrown-with-msg? ExceptionInfo #"Cannot add .* because of unique constraint: .*"
+                      (d/transact! conn [[:db/add 1 :a "A"]
+                                         [:db/add 1 :b "B"]]))))
 
     (testing "multiple tuple updates"
       ;; changing both tuple components in a single operation
@@ -193,7 +205,7 @@
              [2 :b "b"]
              [2 :a+b ["a" "b"]]
              [2 :c "c"]}
-          (tdc/all-datoms (d/db conn))))  
+          (tdc/all-datoms (d/db conn))))
 
     (is (thrown-msg? "Conflicting upserts: [:a+b [\"A\" \"B\"]] resolves to 1, but [:c \"c\"] resolves to 2"
           (d/transact! conn [{:a+b ["A" "B"] :c "c"}])))
@@ -262,10 +274,12 @@
              [2 :b "b"]
              [2 :a+b ["a" "b"]]
              [2 :c "c"]}
-          (tdc/all-datoms (d/db conn))))  
+          (tdc/all-datoms (d/db conn))))
 
-    (is (thrown-with-msg? ExceptionInfo #"Cannot add .* because of unique constraint: .*"
-          (d/transact! conn [[:db/add [:a+b ["A" "B"]] :c "c"]])))
+    (is #?(:cljd (thrown-msg? #"Cannot add .* because of unique constraint: .*"
+                  (d/transact! conn [[:db/add [:a+b ["A" "B"]] :c "c"]]))
+           :default (thrown-with-msg? ExceptionInfo #"Cannot add .* because of unique constraint: .*"
+                      (d/transact! conn [[:db/add [:a+b ["A" "B"]] :c "c"]]))))
 
     (is (thrown-msg? "Conflicting upsert: [:c \"c\"] resolves to 2, but entity already has :db/id 1"
           (d/transact! conn [{:db/id [:a+b ["A" "B"]] :c "c"}])))

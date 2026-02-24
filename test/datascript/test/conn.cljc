@@ -1,6 +1,7 @@
 (ns datascript.test.conn
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
+    #?(:cljd [cljd.test    :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])
     [datascript.core :as d]
     [datascript.db :as db]
     [datascript.test.core :as tdc]))
@@ -16,23 +17,23 @@
   (let [conn (d/create-conn)]
     (is (= #{} (set (d/datoms @conn :eavt))))
     (is (= nil (:schema @conn))))
-  
+
   (let [conn (d/create-conn schema)]
     (is (= #{} (set (d/datoms @conn :eavt))))
     (is (= schema (:schema @conn))))
-  
+
   (let [conn (d/conn-from-datoms datoms)]
     (is (= datoms (set (d/datoms @conn :eavt))))
     (is (= nil (:schema @conn))))
-  
+
   (let [conn (d/conn-from-datoms datoms schema)]
     (is (= datoms (set (d/datoms @conn :eavt))))
     (is (= schema (:schema @conn))))
-  
+
   (let [conn (d/conn-from-db (d/init-db datoms))]
     (is (= datoms (set (d/datoms @conn :eavt))))
     (is (= nil (:schema @conn))))
-  
+
   (let [conn (d/conn-from-db (d/init-db datoms schema))]
     (is (= datoms (set (d/datoms @conn :eavt))))
     (is (= schema (:schema @conn)))))
@@ -48,7 +49,7 @@
     (d/reset-conn! conn db' :meta)
     (is (= datoms' (set (d/datoms @conn :eavt))))
     (is (= schema' (:schema @conn)))
-    
+
     (let [{:keys [db-before db-after tx-data tx-meta]} @report]
       (is (= datoms  (set (d/datoms db-before :eavt))))
       (is (= schema  (:schema db-before)))
@@ -60,3 +61,4 @@
               [1 :age  20     true]
               [1 :sex  :male  true]]
             (map (juxt :e :a :v :added) tx-data))))))
+

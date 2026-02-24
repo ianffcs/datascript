@@ -2,7 +2,8 @@
   (:require
    [datascript.core :as d]
    [datascript.bench.bench :as bench]
-   #?(:clj [jsonista.core :as jsonista])))
+   #?@(:cljd [cljd.reader :as edn-reader]
+       :clj  [jsonista.core :as jsonista])))
 
 #?(:cljs (enable-console-print!))
 
@@ -54,7 +55,7 @@
 (defn bench-init []
   (let [datoms (into []
                  (for [p @bench/*people20k
-                       :let [id (#?(:clj Integer/parseInt :cljs js/parseInt) (:db/id p))]
+                       :let [id (#?(:clj Integer/parseInt :cljs js/parseInt :cljd int/parse) (:db/id p))]
                        [k v] p
                        :when (not= k :db/id)]
                    (d/datom id k v)))]
@@ -219,13 +220,22 @@
      (com.fasterxml.jackson.databind.ObjectMapper.)))
 
 (defn bench-freeze []
-  (bench/bench
-    (-> @*serialize-db (d/serializable) #?(:clj (jsonista/write-value-as-string mapper) :cljs js/JSON.stringify))))
+  #?(:cljd
+     (bench/bench
+       (-> @*serialize-db d/serializable pr-str))
+     :default
+     (bench/bench
+       (-> @*serialize-db (d/serializable) #?(:clj (jsonista/write-value-as-string mapper) :cljs js/JSON.stringify)))))
 
 (defn bench-thaw []
-  (let [json (-> @*serialize-db (d/serializable) #?(:clj (jsonista/write-value-as-string mapper) :cljs js/JSON.stringify))]
-    (bench/bench
-      (-> json #?(:clj (jsonista/read-value mapper) :cljs js/JSON.parse) d/from-serializable))))
+  #?(:cljd
+     (let [edn (-> @*serialize-db d/serializable pr-str)]
+       (bench/bench
+         (-> edn edn-reader/read-string d/from-serializable)))
+     :default
+     (let [json (-> @*serialize-db (d/serializable) #?(:clj (jsonista/write-value-as-string mapper) :cljs js/JSON.stringify))]
+       (bench/bench
+         (-> json #?(:clj (jsonista/read-value mapper) :cljs js/JSON.parse) d/from-serializable)))))
 
 (def benches
   {"add-1"              bench-add-1
@@ -261,10 +271,10 @@
   "clj -A:bench -M -m datascript.bench.datascript [--profile] (add-1 | add-5 | ...)*"
   [& args]
   (let [args     (or args ())
-        profile? (.contains ^java.util.List args "--profile")
+        profile? (boolean (some #{"--profile"} args))
         args     (remove #{"--profile"} args)
         names    (or (not-empty args) (sort (keys benches)))
-        _        (apply println #?(:clj "CLJ:" :cljs "CLJS:") names)
+        _        (apply println #?(:clj "CLJ:" :cljs "CLJS:" :cljd "CLJD:") names)
         longest  (last (sort-by count names))]
     (binding [bench/*profile* profile?]
       (doseq [name names
@@ -278,6 +288,10 @@
               (bench/left-pad (bench/round mean-ms) 6) "ms/op"
               " " (or file ""))))))
     #?(:clj (shutdown-agents))))
+
+#?(:cljd
+   (defn ^:export main [args]
+     (apply -main args)))
 
 (comment
   (require 'datascript.bench.datascript :reload-all)

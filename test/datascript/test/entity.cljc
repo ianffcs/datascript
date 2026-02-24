@@ -1,11 +1,12 @@
 (ns datascript.test.entity
   (:require
-    [clojure.edn :as edn]
+    [#?(:cljd cljd.reader :default clojure.edn) :as edn]
     [clojure.test :as t :refer [is are deftest testing]]
     [datascript.core :as d]
     [datascript.db :as db]
-    [datascript.test.core :as tdc])
-  #?(:clj
+    #?(:cljd [cljd.core :refer [ExceptionInfo]])
+    [datascript.test.core :as tdc :refer [#?(:cljd thrown-msg?)]])
+  #?(:cljd nil :clj
      (:import
        [clojure.lang ExceptionInfo])))
 
@@ -101,7 +102,7 @@
     (is (= nil (:comp (d/entity db 1))))
     (is (= nil (:multiref (d/entity db 1))))
     (is (= nil (:multicomp (d/entity db 1))))))
-  
+
 (deftest test-entity-misses
   (let [db (-> (d/empty-db {:name {:db/unique :db.unique/identity}})
              (d/db-with [{:db/id 1, :name "Ivan"}

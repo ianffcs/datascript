@@ -1,6 +1,7 @@
 (ns datascript.test.query-find-specs
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
+    #?(:cljd [cljd.test    :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])
     [datascript.core :as d]
     [datascript.db :as db]
     [datascript.test.core :as tdc]))

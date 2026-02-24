@@ -1,14 +1,15 @@
 (ns datascript.test.issues
   (:require
     [datascript.core :as ds]
-    [clojure.test :as t :refer [is are deftest testing]]))
+    #?(:cljd [cljd.test :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])))
 
 (deftest ^{:doc "CLJS `apply` + `vector` will hold onto mutable array of arguments directly"}
   issue-262
   (let [db (ds/db-with (ds/empty-db)
              [{:attr "A"} {:attr "B"}])]
     (is (= (ds/q '[:find ?a ?b
-                   :where [_ :attr ?a] 
+                   :where [_ :attr ?a]
                    [(vector ?a) ?b]]
              db)
           #{["A" ["A"]] ["B" ["B"]]}))))
@@ -21,7 +22,8 @@
              (empty))]
     (t/is (= m (meta db)))))
 
-#?(:clj
+#?(:cljd nil
+   :clj
    (deftest ^{:doc "Can't pprint filtered db"}
      issue-330
      (let [base     (-> (ds/empty-db {:aka {:db/cardinality :db.cardinality/many}})

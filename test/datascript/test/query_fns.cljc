@@ -1,12 +1,13 @@
 (ns datascript.test.query-fns
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
+    #?(:cljd [cljd.test    :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])
     [datascript.core :as d]
     [datascript.db :as db]
-    [datascript.test.core :as tdc])
-  #?(:clj
-     (:import
-       [clojure.lang ExceptionInfo])))
+    [datascript.test.core :as tdc :refer [#?(:cljd thrown-msg?)]])
+  #?(:cljd (:require [cljd.core :refer [ExceptionInfo]])
+     :clj
+     (:import [clojure.lang ExceptionInfo])))
 
 (deftest test-query-fns
   (testing "predicate without free variables"
@@ -31,10 +32,14 @@
                     [(get-else $ ?e :height 300) ?height]] db)
             #{[1 15 300] [2 22 240] [3 37 300]}))
       
-      (is (thrown-with-msg? ExceptionInfo #"get-else: nil default value is not supported"
-            (d/q '[:find ?e ?height
-                   :where [?e :age]
-                   [(get-else $ ?e :height nil) ?height]] db))))
+      (is #?(:cljd (thrown-msg? #"get-else: nil default value is not supported"
+                    (d/q '[:find ?e ?height
+                           :where [?e :age]
+                           [(get-else $ ?e :height nil) ?height]] db))
+             :default (thrown-with-msg? ExceptionInfo #"get-else: nil default value is not supported"
+                        (d/q '[:find ?e ?height
+                               :where [?e :age]
+                               [(get-else $ ?e :height nil) ?height]] db)))))
 
     (testing "get-some"
       (is (= (d/q '[:find ?e ?a ?v
@@ -266,7 +271,7 @@
        [?e2 :name]
        [(< ?e ?e2)]]
       #{[1 2] [1 3] [1 4] [2 3] [2 4] [3 4]}
-         
+
       ;; join with extra symbols
       [:find  ?e ?e2
        :where [?e  :age ?a]
@@ -330,7 +335,7 @@
 
   (is (thrown-msg? "Where uses unknown source vars: [$]"
         (d/q '[:find  ?x
-               :in    $2 
+               :in    $2
                :where [$2 ?x] [(zero? $ ?x)]]))))
 
 (deftest test-issue-180
@@ -344,7 +349,9 @@
 (defn sample-query-fn []
   42)
 
-#?(:clj
+#?(:cljd
+   (deftest test-symbol-resolution)
+   :clj
    (deftest test-symbol-resolution
      (is (= 42 (d/q '[:find ?x .
                       :where [(datascript.test.query-fns/sample-query-fn) ?x]])))))

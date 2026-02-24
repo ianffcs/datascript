@@ -12,6 +12,7 @@
 ;;
 (defrecord-updatable HashBeef [x]
   #?@(:cljs [IHash                (-hash  [hb] 0xBEEF)]
+      :cljd [cljd.core/IHash      (-hash  [hb] 0xBEEF)]
       :clj  [clojure.lang.IHashEq (hasheq [hb] 0xBEEF)]))
 
 (deftest test-defrecord-updatable
@@ -26,7 +27,8 @@
       (is (= h @(.-hash db))))))
 
 (defn- now []
-  #?(:clj  (System/currentTimeMillis)
+  #?(:cljd (.-millisecondsSinceEpoch (DateTime/now))
+     :clj  (System/currentTimeMillis)
      :cljs (.getTime (js/Date.))))
 
 (deftest test-uuid

@@ -1,10 +1,12 @@
 (ns datascript.test.pull-parser
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
+    #?(:cljd [cljd.test    :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])
     [datascript.core :as d]
     [datascript.db :as db]
     [datascript.pull-parser :as dpp]
-    [datascript.test.core :as tdc]))
+    #?(:cljd [cljd.core :refer [ExceptionInfo]])
+    [datascript.test.core :as tdc :refer [#?(:cljd thrown-msg?)]]))
 
 (def *db
   (delay
@@ -92,7 +94,7 @@
     ; xform
     [[:normal :xform 'inc]] (pattern :attrs [(attr :normal :xform inc)])
     [[:normal :xform inc]] (pattern :attrs [(attr :normal :xform inc)])
-    #?@(:clj [[[:normal :xform 'datascript.db/datom?]] (pattern :attrs [(attr :normal :xform db/datom?)])])
+    #?@(:cljd [] :clj [[[:normal :xform 'datascript.db/datom?]] (pattern :attrs [(attr :normal :xform db/datom?)])])
 
     ; combined
     ['(:multival :limit 100 :default :xyz :as :other :xform inc)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100, :as :other, :xform inc)])
@@ -107,12 +109,12 @@
     ['(default (:multival :limit 100) :xyz)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
     ['(((limit :multival 100) :default :xyz))] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
     ['(((default :multival :xyz) :limit 100))] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
-    
+
     ; repeated
     [:multival [:multival :default :xyz] [:multival :limit 100]] (pattern :attrs [(attr :multival, :multival? true, :limit 100)])
     [:ref {:ref '...}] (pattern :attrs [(attr :ref, :ref? true, :pattern nil, :recursive? true, :recursion-limit nil)])
     [{:ref '...} :ref] (pattern :attrs [(attr :ref, :ref? true)])
-    
+
     ; map spec
     [{:ref [:normal]}]                    (pattern :attrs [(attr :ref, :ref? true, :pattern (pattern :attrs [(attr :normal)]))])
     [{:_ref [:normal]}]                   (pattern :reverse-attrs [(attr :ref, :as :_ref, :ref? true, :reverse? true, :pattern (pattern :attrs [(attr :normal)]))])
@@ -126,7 +128,7 @@
 
     ; map spec limits
     [{:ref 100}]   (pattern :attrs         [(attr :ref,            :ref? true,                 :pattern nil, :recursive? true, :recursion-limit 100)])
-    [{:ref '...}]  (pattern :attrs         [(attr :ref,            :ref? true,                 :pattern nil, :recursive? true, :recursion-limit nil)]) 
+    [{:ref '...}]  (pattern :attrs         [(attr :ref,            :ref? true,                 :pattern nil, :recursive? true, :recursion-limit nil)])
     [{:ref "..."}] (pattern :attrs         [(attr :ref,            :ref? true,                 :pattern nil, :recursive? true, :recursion-limit nil)])
     [{:_ref 100}]  (pattern :reverse-attrs [(attr :ref, :as :_ref, :ref? true, :reverse? true, :pattern nil, :recursive? true, :recursion-limit 100)])
     [{:_ref '...}] (pattern :reverse-attrs [(attr :ref, :as :_ref, :ref? true, :reverse? true, :pattern nil, :recursive? true, :recursion-limit nil)]))
@@ -138,10 +140,10 @@
 
       ; attr-expr
       ['(:multival :limit)] "Expected even number of opts, got: (:multival :limit)"
-      
+
       ; limit
       ['(limit :multival)] "Expected ['limit attr-name (positive-number | nil)], got: (limit :multival)"
-      ['(:normal :limit 100)] "Expected limit attribute having :db.cardinality/many, got: :normal"      
+      ['(:normal :limit 100)] "Expected limit attribute having :db.cardinality/many, got: :normal"
       ['(limit :normal 100)]  "Expected limit attribute having :db.cardinality/many, got: :normal"
       ['(:multival :limit :abc)] "Expected (positive-number | nil), got: :abc"
       ['(limit :multival :abc)]  "Expected (positive-number | nil), got: :abc"

@@ -1,14 +1,19 @@
 (ns datascript.test.parser-return-map
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
+    #?(:cljd [cljd.test :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])
+    #?(:cljd [cljd.core :refer [ExceptionInfo]])
     [datascript.core :as d]
     [datascript.parser :as dp]
     [datascript.db :as db]
-    [datascript.test.core :as tdc]))
+    [datascript.test.core :as tdc :refer [#?(:cljd thrown-msg?)]]))
 
 #?(:cljs
    (def Throwable
-     js/Error))
+     js/Error)
+   :cljd
+   (def Throwable
+     ExceptionInfo))
 
 (deftest test-parse-return-map
   (is (= (:qreturn-map (dp/parse-query '[:find ?a ?b :keys x y :where [?a ?b]]))

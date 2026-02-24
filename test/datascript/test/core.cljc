@@ -1,9 +1,11 @@
 (ns datascript.test.core
   (:require
-    [clojure.edn :as edn]
-    [clojure.test :as t :refer [is are deftest testing]]
+    [#?(:cljd cljd.reader :default clojure.edn) :as edn]
+    #?(:cljd [cljd.test :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])
     [clojure.string :as str]
-    [cognitect.transit :as transit]
+    #?(:cljd [wevre.transit-cljd :as transit]
+       :default [cognitect.transit :as transit])
     [datascript.core :as d]
     [datascript.impl.entity :as de]
     [datascript.db :as db :refer [defrecord-updatable]]
@@ -11,6 +13,20 @@
 
 #?(:cljs
    (enable-console-print!))
+
+#?(:cljd
+   (defmacro thrown-msg? [expected-msg & body]
+     `(try
+        ~@body
+        false
+        (catch cljd.core/ExceptionInfo e#
+          (let [msg# (cljd.core/ex-message e#)]
+            (or (and msg#
+                     (if (instance? RegExp ~expected-msg)
+                       (re-find ~expected-msg ^String msg#)
+                       (.contains ^String msg# ~expected-msg)))
+                ;; rethrow for now to have a telling exception
+                (throw e#)))))))
 
 ;; Added special case for printing ex-data of ExceptionInfo
 #?(:cljs
@@ -36,13 +52,15 @@
            (reset! test-summary (dissoc m :type))))
 
 (defn wrap-res [f]
-  #?(:cljs (do (f) (clj->js @test-summary))
+  #?(:cljd :TOOD?
+     :cljs (do (f) (clj->js @test-summary))
      :clj  (let [res (f)]
              (when (pos? (+ (:fail res) (:error res)))
                (System/exit 1)))))
 
 ;; utils
-#?(:clj
+#?(:cljd nil
+   :clj
    (defmethod t/assert-expr 'thrown-msg? [msg form]
      (let [[_ match & body] form]
        `(try ~@body
@@ -64,7 +82,11 @@
 (defn all-datoms [db]
   (into #{} (map (juxt :e :a :v)) (d/datoms db :eavt)))
 
-#?(:clj
+#?(:cljd
+   (defn no-namespace-maps
+     ([])
+     ([_]))
+   :clj
    (defn no-namespace-maps [t]
      (binding [*print-namespace-maps* false]
        (t)))
@@ -72,7 +94,16 @@
    (def no-namespace-maps {:before #(set! *print-namespace-maps* false)}))
 
 (defn transit-write [o type]
-  #?(:clj
+  #?(:cljd
+     (let [json-enc (.-encoder (transit/json))
+           jsonv-enc (.-encoder (transit/json-verbose))
+           msgpack-enc (.-encoder (transit/msgpack))]
+       (condp = type
+         :json (.convert json-enc o)
+         :json-verbose (.convert jsonv-enc o)
+         :msgpack (.convert msgpack-enc o)
+         (.convert json-enc o)))
+     :clj
      (with-open [os (java.io.ByteArrayOutputStream.)]
        (let [writer (transit/writer os type)]
          (transit/write writer o)
@@ -80,19 +111,31 @@
      :cljs
      (transit/write (transit/writer type) o)))
 
+
 (defn transit-write-str [o]
-  #?(:clj (String. ^bytes (transit-write o :json) "UTF-8")
+  #?(:cljd (transit-write o :json)
+     :clj (String. ^bytes (transit-write o :json) "UTF-8")
      :cljs (transit-write o :json)))
 
 (defn transit-read [s type]
-  #?(:clj
+  #?(:cljd
+     (let [json-dec (.-decoder (transit/json))
+           jsonv-dec (.-decoder (transit/json-verbose))
+           msgpack-dec (.-decoder (transit/msgpack))]
+       (condp = type
+         :json (.convert json-dec s)
+         :json-verbose (.convert jsonv-dec s)
+         :msgpack (.convert msgpack-dec s)
+         (.convert json-dec s)))
+     :clj
      (with-open [is (java.io.ByteArrayInputStream. s)]
        (transit/read (transit/reader is type)))
      :cljs
      (transit/read (transit/reader type) s)))
 
 (defn transit-read-str [s]
-  #?(:clj  (transit-read (.getBytes ^String s "UTF-8") :json)
+  #?(:cljd (transit-read s :json)
+     :clj  (transit-read (.getBytes ^String s "UTF-8") :json)
      :cljs (transit-read s :json)))
 
 ;; Core tests

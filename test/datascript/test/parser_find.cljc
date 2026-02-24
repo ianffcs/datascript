@@ -1,6 +1,8 @@
 (ns datascript.test.parser-find
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
+    #?(:cljd [cljd.test    :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])
+    #?(:cljd [cljd.core :refer [ExceptionInfo]])
     [datascript.core :as d]
     [datascript.db :as db]
     [datascript.parser :as dp]
@@ -8,7 +10,10 @@
 
 #?(:cljs
    (def Throwable
-     js/Error))
+     js/Error)
+   :cljd
+   (def Throwable
+     ExceptionInfo))
 
 (deftest test-parse-find
   (is (= (dp/parse-find '[?a ?b])

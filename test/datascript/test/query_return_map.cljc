@@ -1,6 +1,7 @@
 (ns datascript.test.query-return-map
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
+    #?(:cljd [cljd.test    :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])
     [datascript.core :as d]
     [datascript.db :as db]
     [datascript.test.core :as tdc]))
@@ -42,5 +43,3 @@
                 [?e :age  ?age]]
            @*test-db)
         {:n "Ivan" :a 25})))
-
-

@@ -1,10 +1,12 @@
 (ns datascript.test.query
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
+    #?(:cljd [cljd.test    :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])
     [datascript.core :as d]
     [datascript.db :as db]
-    [datascript.test.core :as tdc])
-  #?(:clj
+    [datascript.test.core :as tdc :refer [#?(:cljd thrown-msg?)]]
+    #?(:cljd [cljd.core :refer [ExceptionInfo]]))
+  #?(:cljd nil :clj
      (:import
        [clojure.lang ExceptionInfo])))
 
@@ -104,7 +106,8 @@
             #{[1 "ivan@mail.ru"]
               [2 "petr@gmail.com"]
               [3 "ivan@mail.ru"]})))
-    
+
+
     (testing "Query without DB"
       (is (= (d/q '[:find ?a ?b
                     :in   ?a ?b]
@@ -169,7 +172,8 @@
                 [2 :name "Petr"]]
                [])
             #{})))
-    
+
+
     (testing "Placeholders"
       (is (= (d/q '[:find ?x ?z
                     :in [?x _ ?z]]
@@ -179,15 +183,23 @@
                     :in [[?x _ ?z]]]
                [[:x :y :z] [:a :b :c]])
             #{[:x :z] [:a :c]})))
-    
+
+
     (testing "Error reporting"
-      (is (thrown-with-msg? ExceptionInfo #"Cannot bind value :a to tuple \[\?a \?b\]"
-            (d/q '[:find ?a ?b :in [?a ?b]] :a)))
-      (is (thrown-with-msg? ExceptionInfo #"Cannot bind value :a to collection \[\?a \.\.\.\]"
-            (d/q '[:find ?a :in [?a ...]] :a)))
-      (is (thrown-with-msg? ExceptionInfo #"Not enough elements in a collection \[:a\] to bind tuple \[\?a \?b\]"
-            (d/q '[:find ?a ?b :in [?a ?b]] [:a]))))))
-        
+      (is #?(:cljd (thrown-msg? #"Cannot bind value :a to tuple \[\?a \?b\]"
+                    (d/q '[:find ?a ?b :in [?a ?b]] :a))
+             :default (thrown-with-msg? ExceptionInfo #"Cannot bind value :a to tuple \[\?a \?b\]"
+                        (d/q '[:find ?a ?b :in [?a ?b]] :a))))
+      (is #?(:cljd (thrown-msg? #"Cannot bind value :a to collection \[\?a \.\.\.\]"
+                    (d/q '[:find ?a :in [?a ...]] :a))
+             :default (thrown-with-msg? ExceptionInfo #"Cannot bind value :a to collection \[\?a \.\.\.\]"
+                        (d/q '[:find ?a :in [?a ...]] :a))))
+      (is #?(:cljd (thrown-msg? #"Not enough elements in a collection \[:a\] to bind tuple \[\?a \?b\]"
+                    (d/q '[:find ?a ?b :in [?a ?b]] [:a]))
+             :default (thrown-with-msg? ExceptionInfo #"Not enough elements in a collection \[:a\] to bind tuple \[\?a \?b\]"
+                        (d/q '[:find ?a ?b :in [?a ?b]] [:a])))))))
+
+
 (deftest test-nested-bindings
   (is (= (d/q '[:find  ?k ?v
                 :in    [[?k ?v] ...]

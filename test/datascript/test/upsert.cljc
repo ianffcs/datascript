@@ -1,13 +1,18 @@
 (ns datascript.test.upsert
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
+    #?(:cljd [cljd.test    :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])
+    #?(:cljd [cljd.core :refer [ExceptionInfo]])
     [datascript.core :as d]
     [datascript.db :as db]
-    [datascript.test.core :as tdc]))
+    [datascript.test.core :as tdc :refer [#?(:cljd thrown-msg?)]]))
 
 #?(:cljs
    (def Throwable
-     js/Error))
+     js/Error)
+   :cljd
+   (def Throwable
+     ExceptionInfo))
 
 (deftest test-upsert
   (let [ivan    {:db/id 1 :name "Ivan" :email "@1"}
@@ -103,12 +108,16 @@
               {}))))
 
     (testing "upsert conflicts with existing id"
-      (is (thrown-with-msg? Throwable #"Conflicting upsert: \[:name \"Ivan\"\] resolves to 1, but entity already has :db/id 2"
-            (d/with db [{:db/id 2 :name "Ivan" :age 36}]))))
+      (is #?(:cljd (thrown-msg? #"Conflicting upsert: \[:name \"Ivan\"\] resolves to 1, but entity already has :db/id 2"
+                    (d/with db [{:db/id 2 :name "Ivan" :age 36}]))
+             :default (thrown-with-msg? Throwable #"Conflicting upsert: \[:name \"Ivan\"\] resolves to 1, but entity already has :db/id 2"
+                        (d/with db [{:db/id 2 :name "Ivan" :age 36}])))))
 
     (testing "upsert conflicts with non-existing id"
-      (is (thrown-with-msg? Throwable #"Conflicting upsert: \[:name \"Ivan\"\] resolves to 1, but entity already has :db/id 5"
-            (d/with db [{:db/id 5 :name "Ivan" :age 36}]))))
+      (is #?(:cljd (thrown-msg? #"Conflicting upsert: \[:name \"Ivan\"\] resolves to 1, but entity already has :db/id 5"
+                    (d/with db [{:db/id 5 :name "Ivan" :age 36}]))
+             :default (thrown-with-msg? Throwable #"Conflicting upsert: \[:name \"Ivan\"\] resolves to 1, but entity already has :db/id 5"
+                        (d/with db [{:db/id 5 :name "Ivan" :age 36}])))))
     
     (testing "upsert by non-existing value resolves as update"
       (let [tx (d/with db [{:name "Ivan" :email "@5" :age 35}])]
@@ -118,8 +127,10 @@
               (tempids tx)))))
 
     (testing "upsert by 2 conflicting fields"
-      (is (thrown-with-msg? Throwable #"Conflicting upserts: \[:name \"Ivan\"\] resolves to 1, but \[:email \"@2\"\] resolves to 2"
-            (d/with db [{:name "Ivan" :email "@2" :age 35}]))))
+      (is #?(:cljd (thrown-msg? #"Conflicting upserts: \[:name \"Ivan\"\] resolves to 1, but \[:email \"@2\"\] resolves to 2"
+                    (d/with db [{:name "Ivan" :email "@2" :age 35}]))
+             :default (thrown-with-msg? Throwable #"Conflicting upserts: \[:name \"Ivan\"\] resolves to 1, but \[:email \"@2\"\] resolves to 2"
+                        (d/with db [{:name "Ivan" :email "@2" :age 35}])))))
 
     (testing "upsert over intermediate db"
       (let [tx (d/with db [{:name "Igor" :age 35}
@@ -146,8 +157,10 @@
               {-1 5, -2 5}))))
 
     (testing "upsert and :current-tx conflict"
-      (is (thrown-with-msg? Throwable #"Conflicting upsert: \[:name \"Ivan\"\] resolves to 1, but entity already has :db/id \d+"
-            (d/with db [{:db/id :db/current-tx :name "Ivan" :age 35}]))))
+      (is #?(:cljd (thrown-msg? #"Conflicting upsert: \[:name \"Ivan\"\] resolves to 1, but entity already has :db/id \d+"
+                    (d/with db [{:db/id :db/current-tx :name "Ivan" :age 35}]))
+             :default (thrown-with-msg? Throwable #"Conflicting upsert: \[:name \"Ivan\"\] resolves to 1, but entity already has :db/id \d+"
+                        (d/with db [{:db/id :db/current-tx :name "Ivan" :age 35}])))))
 
     (testing "upsert of unique, cardinality-many values"
       (let [tx  (d/with db [{:name "Ivan" :slugs "ivan1"}
@@ -157,8 +170,10 @@
               (pull tx 1)))
         (is (= {:db/id 1 :name "Ivan" :email "@1" :slugs ["ivan1" "ivan2"]}
               (pull tx2 1)))
-        (is (thrown-with-msg? Throwable #"Conflicting upserts:"
-              (d/with (:db-after tx) [{:slugs ["ivan1" "petr1"]}])))))
+        (is #?(:cljd (thrown-msg? #"Conflicting upserts:"
+                      (d/with (:db-after tx) [{:slugs ["ivan1" "petr1"]}]))
+               :default (thrown-with-msg? Throwable #"Conflicting upserts:"
+                          (d/with (:db-after tx) [{:slugs ["ivan1" "petr1"]}]))))))
     
     (testing "upsert by ref"
       (let [tx (d/with db [{:ref 3 :age 36}])]
@@ -207,9 +222,12 @@
   (let [db (-> (d/empty-db {:name  {:db/unique :db.unique/identity}})
              (d/db-with [{:db/id -1 :name "Ivan"}
                          {:db/id -2 :name "Oleg"}]))]
-    (is (thrown-with-msg? Throwable #"Conflicting upsert: -1 resolves both to 1 and 2"
-          (d/with db [{:db/id -1 :name "Ivan" :age 35}
-                      {:db/id -1 :name "Oleg" :age 36}])))))
+    (is #?(:cljd (thrown-msg? #"Conflicting upsert: -1 resolves both to 1 and 2"
+                  (d/with db [{:db/id -1 :name "Ivan" :age 35}
+                              {:db/id -1 :name "Oleg" :age 36}]))
+           :default (thrown-with-msg? Throwable #"Conflicting upsert: -1 resolves both to 1 and 2"
+                      (d/with db [{:db/id -1 :name "Ivan" :age 35}
+                                  {:db/id -1 :name "Oleg" :age 36}]))))))
 
 ;; issue-285
 (deftest test-retries-order
@@ -277,7 +295,7 @@
       [[:db/add -1 :name "Ivan"]
        [:db/add -1 :age 12]]
       #{[1 :age 12] [1 :name "Ivan"]}
-         
+      
       [[:db/add -1 :age 12]
        [:db/add -1 :name "Ivan"]]
       #{[1 :age 12] [1 :name "Ivan"]}))
@@ -285,8 +303,13 @@
   (let [db (-> (d/empty-db {:name  {:db/unique :db.unique/identity}})
              (d/db-with [[:db/add -1 :name "Ivan"]
                          [:db/add -2 :name "Oleg"]]))]
-    (is (thrown-with-msg? Throwable #"Conflicting upsert: -1 resolves both to 1 and 2"
-          (d/with db [[:db/add -1 :name "Ivan"]
-                      [:db/add -1 :age 35]
-                      [:db/add -1 :name "Oleg"]
-                      [:db/add -1 :age 36]])))))
+    (is #?(:cljd (thrown-msg? #"Conflicting upsert: -1 resolves both to 1 and 2"
+                  (d/with db [[:db/add -1 :name "Ivan"]
+                              [:db/add -1 :age 35]
+                              [:db/add -1 :name "Oleg"]
+                              [:db/add -1 :age 36]]))
+           :default (thrown-with-msg? Throwable #"Conflicting upsert: -1 resolves both to 1 and 2"
+                      (d/with db [[:db/add -1 :name "Ivan"]
+                                  [:db/add -1 :age 35]
+                                  [:db/add -1 :name "Oleg"]
+                                  [:db/add -1 :age 36]]))))))

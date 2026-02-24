@@ -1,9 +1,11 @@
 (ns datascript.test.transact
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
+    #?(:cljd [cljd.test    :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])
     [datascript.core :as d]
     [datascript.db :as db]
-    [datascript.test.core :as tdc]))
+    #?(:cljd [cljd.core :refer [ExceptionInfo]])
+    [datascript.test.core :as tdc :refer [#?(:cljd thrown-msg?)]]))
 
 (deftest test-with
   (let [db  (-> (d/empty-db {:aka {:db/cardinality :db.cardinality/many}})
@@ -123,7 +125,7 @@
     (let [db' (d/db-with db [[:db/retract 2 :employed? false]])]
       (is (= [(db/datom 2 :employed? true)]
             (d/datoms db' :eavt 2 :employed?))))))
-  
+
 (deftest test-retract-fns-not-found
   (let [db  (-> (d/empty-db {:name {:db/unique :db.unique/identity}})
               (d/db-with  [[:db/add 1 :name "Ivan"]]))

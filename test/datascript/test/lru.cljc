@@ -1,6 +1,7 @@
 (ns datascript.test.lru
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
+    #?(:cljd [cljd.test    :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])
     [datascript.lru :as lru]))
 
 (deftest test-lru

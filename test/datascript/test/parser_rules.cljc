@@ -1,13 +1,14 @@
 (ns datascript.test.parser-rules
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
+    #?(:cljd [cljd.test    :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])
     [datascript.core :as d]
     [datascript.db :as db]
     [datascript.parser :as dp]
-    [datascript.test.core :as tdc])
-  #?(:clj
-     (:import
-       [clojure.lang ExceptionInfo])))
+    [datascript.test.core :as tdc :refer [#?(:cljd thrown-msg?)]])
+  #?(:cljd (:require [cljd.core :refer [ExceptionInfo]])
+     :clj
+     (:import [clojure.lang ExceptionInfo])))
 
 (deftest clauses
   (are [form res] (= (set (dp/parse-rules form)) res)
@@ -22,7 +23,7 @@
               [(dp/->Variable '?x) (dp/->Constant :name) (dp/->Placeholder)])])])}))
 
 (deftest rule-vars
-  (are [form res] (= (set (dp/parse-rules form)) res)       
+  (are [form res] (= (set (dp/parse-rules form)) res)
     '[[(rule [?x] ?y)
        [_]]]
     #{(dp/->Rule
@@ -49,17 +50,25 @@
            (dp/->RuleVars [(dp/->Variable '?x)] nil)
            [(dp/->Pattern (dp/->DefaultSrc) [(dp/->Placeholder)])])])})
 
-  (is (thrown-with-msg? ExceptionInfo #"Cannot parse rule-vars"
-        (dp/parse-rules '[[(rule) [_]]])))
+  (is #?(:cljd (thrown-msg? #"Cannot parse rule-vars"
+               (dp/parse-rules '[[(rule) [_]]]))
+         :default (thrown-with-msg? ExceptionInfo #"Cannot parse rule-vars"
+                    (dp/parse-rules '[[(rule) [_]]]))))
 
-  (is (thrown-with-msg? ExceptionInfo #"Cannot parse rule-vars"
-        (dp/parse-rules '[[(rule []) [_]]])))
+  (is #?(:cljd (thrown-msg? #"Cannot parse rule-vars"
+               (dp/parse-rules '[[(rule []) [_]]]))
+         :default (thrown-with-msg? ExceptionInfo #"Cannot parse rule-vars"
+                    (dp/parse-rules '[[(rule []) [_]]]))))
 
-  (is (thrown-with-msg? ExceptionInfo #"Rule variables should be distinct"
-        (dp/parse-rules '[[(rule ?x ?y ?x) [_]]])))
-  
-  (is (thrown-with-msg? ExceptionInfo #"Rule variables should be distinct"
-        (dp/parse-rules '[[(rule [?x ?y] ?z ?x) [_]]]))))
+  (is #?(:cljd (thrown-msg? #"Rule variables should be distinct"
+               (dp/parse-rules '[[(rule ?x ?y ?x) [_]]]))
+         :default (thrown-with-msg? ExceptionInfo #"Rule variables should be distinct"
+                    (dp/parse-rules '[[(rule ?x ?y ?x) [_]]]))))
+
+  (is #?(:cljd (thrown-msg? #"Rule variables should be distinct"
+               (dp/parse-rules '[[(rule [?x ?y] ?z ?x) [_]]]))
+         :default (thrown-with-msg? ExceptionInfo #"Rule variables should be distinct"
+                    (dp/parse-rules '[[(rule [?x ?y] ?z ?x) [_]]])))))
 
 (deftest branches
   (are [form res] (= (set (dp/parse-rules form)) res)
@@ -95,13 +104,21 @@
            (dp/->RuleVars nil [(dp/->Variable '?x)])
            [(dp/->Pattern (dp/->DefaultSrc) [(dp/->Constant :c)])])])})
   
-  (is (thrown-with-msg? ExceptionInfo #"Rule branch should have clauses"
-        (dp/parse-rules '[[(rule ?x)]])))
-  
-  (is (thrown-with-msg? ExceptionInfo #"Arity mismatch"
-        (dp/parse-rules '[[(rule ?x) [_]]
-                          [(rule ?x ?y) [_]]])))
-  
-  (is (thrown-with-msg? ExceptionInfo #"Arity mismatch"
-        (dp/parse-rules '[[(rule ?x) [_]]
-                          [(rule [?x]) [_]]]))))  
+  (is #?(:cljd (thrown-msg? #"Rule branch should have clauses"
+               (dp/parse-rules '[[(rule ?x)]]))
+         :default (thrown-with-msg? ExceptionInfo #"Rule branch should have clauses"
+                    (dp/parse-rules '[[(rule ?x)]]))))
+
+  (is #?(:cljd (thrown-msg? #"Arity mismatch"
+               (dp/parse-rules '[[(rule ?x) [_]]
+                                 [(rule ?x ?y) [_]]]))
+         :default (thrown-with-msg? ExceptionInfo #"Arity mismatch"
+                    (dp/parse-rules '[[(rule ?x) [_]]
+                                      [(rule ?x ?y) [_]]]))))
+
+  (is #?(:cljd (thrown-msg? #"Arity mismatch"
+               (dp/parse-rules '[[(rule ?x) [_]]
+                                 [(rule [?x]) [_]]]))
+         :default (thrown-with-msg? ExceptionInfo #"Arity mismatch"
+                    (dp/parse-rules '[[(rule ?x) [_]]
+                                      [(rule [?x]) [_]]])))))  

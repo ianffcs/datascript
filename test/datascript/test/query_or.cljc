@@ -1,10 +1,13 @@
 (ns datascript.test.query-or
   (:require
-    [clojure.test :as t :refer [is are deftest testing]]
+    #?(:cljd [cljd.test :as t :refer [is are deftest testing]]
+       :default [clojure.test :as t :refer [is are deftest testing]])
+    #?(:cljd [cljd.core :refer [ExceptionInfo]])
     [datascript.core :as d]
     [datascript.db :as db]
-    [datascript.test.core :as tdc])
-  #?(:clj
+    [datascript.test.core :as tdc :refer [#?(:cljd thrown-msg?)]])
+  #?(:cljd nil
+     :clj
      (:import
        [clojure.lang ExceptionInfo])))
 
@@ -26,23 +29,23 @@
     [(or [?e :name "Oleg"]
        [?e :age 10])]
     #{1 3 4 5}
-         
+
     ;; one branch empty
     [(or [?e :name "Oleg"]
        [?e :age 30])]
     #{3 4}
-        
+
     ;; both empty
     [(or [?e :name "Petr"]
        [?e :age 30])]
     #{}
-         
+
     ;; join with 1 var
     [[?e :name "Ivan"]
      (or [?e :name "Oleg"]
        [?e :age 10])]
     #{1 5}
-      
+
     ;; join with 2 vars
     [[?e :age ?a]
      (or (and [?e :name "Ivan"]
@@ -84,7 +87,7 @@
        (and [?e :age ?a]
          [?e :name ?n]))]
     #{1 2 3 4 5 6}
-       
+
     [[?e  :name ?a]
      [?e2 :name ?a]
      (or-join [?e]
@@ -164,22 +167,22 @@
       [[?e :name]
        (or [?e :name "Ivan"])]
       #{1}
-      
+
       ;; OR can reference any source
       [[?e :name]
        (or [$2 ?e :age 10])]
       #{1}
-      
+
       ;; OR can change default source
       [[?e :name]
        ($2 or [?e :age 10])]
       #{1}
-      
+
       ;; even with another default source, it can reference any other source explicitly
       [[?e :name]
        ($2 or [$ ?e :name "Ivan"])]
       #{1}
-      
+
       ;; nested OR keeps the default source
       [[?e :name]
        ($2 or (or [?e :age 10]))]
@@ -220,11 +223,16 @@
             db "Ivan")))))
 
 (deftest test-errors
-  (is (thrown-with-msg? ExceptionInfo #"All clauses in 'or' must use same set of free vars, had \[#\{\?e\} #\{(\?a \?e|\?e \?a)\}\] in \(or \[\?e :name _\] \[\?e :age \?a\]\)"
-        (d/q '[:find ?e
-               :where (or [?e :name _]
-                        [?e :age ?a])]
-          @*test-db)))
+  (is #?(:cljd (thrown-msg? #"All clauses in 'or' must use same set of free vars, had \[#\{\?e\} #\{(\?a \?e|\?e \?a)\}\] in \(or \[\?e :name _\] \[\?e :age \?a\]\)"
+               (d/q '[:find ?e
+                      :where (or [?e :name _]
+                               [?e :age ?a])]
+                 @*test-db))
+         :default (thrown-with-msg? ExceptionInfo #"All clauses in 'or' must use same set of free vars, had \[#\{\?e\} #\{(\?a \?e|\?e \?a)\}\] in \(or \[\?e :name _\] \[\?e :age \?a\]\)"
+                    (d/q '[:find ?e
+                           :where (or [?e :name _]
+                                    [?e :age ?a])]
+                      @*test-db))))
 
   (is (thrown-msg? "Insufficient bindings: #{?e} not bound in (or-join [[?e]] [?e :name \"Ivan\"])"
         (d/q '[:find ?e
