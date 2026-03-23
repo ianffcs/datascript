@@ -1,15 +1,17 @@
 (ns datascript.test.core
   (:require
-    [#?(:cljd cljd.reader :default clojure.edn) :as edn]
-    #?(:cljd [cljd.test :as t :refer [is are deftest testing]]
-       :default [clojure.test :as t :refer [is are deftest testing]])
-    [clojure.string :as str]
-    #?(:cljd [wevre.transit-cljd :as transit]
-       :default [cognitect.transit :as transit])
-    [datascript.core :as d]
-    [datascript.impl.entity :as de]
-    [datascript.db :as db :refer [defrecord-updatable]]
-    #?(:cljs [datascript.test.cljs])))
+   [#?(:cljs cljs.reader :cljd cljd.reader :clj clojure.edn) :as edn]
+   #?(:cljd  [cljd.test :as t :refer        [is are deftest testing]]
+      :cljs [cljs.test    :as t :refer-macros [is are deftest testing]]
+      :clj  [clojure.test :as t :refer        [is are deftest testing]])
+   [clojure.string :as str]
+   #?(:cljd [wevre.transit-cljd :as transit]
+      :default [cognitect.transit :as transit])
+   [datascript.core :as d]
+   [datascript.impl.entity :as de]
+   [datascript.db :as db #?@(:cljs [:refer-macros [defrecord-updatable]]
+                             :clj  [:refer [defrecord-updatable]])]
+   #?(:cljs [datascript.test.cljs])))
 
 #?(:cljs
    (enable-console-print!))
@@ -19,14 +21,10 @@
      `(try
         ~@body
         false
-        (catch cljd.core/ExceptionInfo e#
-          (let [msg# (cljd.core/ex-message e#)]
-            (or (and msg#
-                     (if (instance? RegExp ~expected-msg)
-                       (re-find ~expected-msg ^String msg#)
-                       (.contains ^String msg# ~expected-msg)))
-                ;; rethrow for now to have a telling exception
-                (throw e#)))))))
+        (catch dynamic ^ExceptionInfo e#
+          (or (.contains ^String (or (.-message ^ExceptionInfo e#) (.toString e#)) ~expected-msg)
+              ;; rethrow for now to have a telling exception
+              (throw e#))))))
 
 ;; Added special case for printing ex-data of ExceptionInfo
 #?(:cljs
@@ -61,9 +59,9 @@
 ;; utils
 #?(:cljd nil
    :clj
-   (defmethod t/assert-expr 'thrown-msg? [msg form]
-     (let [[_ match & body] form]
-       `(try ~@body
+(defmethod t/assert-expr 'thrown-msg? [msg form]
+  (let [[_ match & body] form]
+    `(try ~@body
           (t/do-report {:type :fail, :message ~msg, :expected '~form, :actual nil})
           (catch Throwable e#
             (let [m# (.getMessage e#)]
@@ -87,11 +85,11 @@
      ([])
      ([_]))
    :clj
-   (defn no-namespace-maps [t]
-     (binding [*print-namespace-maps* false]
-       (t)))
-   :cljs
-   (def no-namespace-maps {:before #(set! *print-namespace-maps* false)}))
+(defn no-namespace-maps [t]
+  (binding [*print-namespace-maps* false]
+    (t)))
+:cljs
+(def no-namespace-maps {:before #(set! *print-namespace-maps* false)}))
 
 (defn transit-write [o type]
   #?(:cljd
@@ -143,10 +141,10 @@
 (deftest test-protocols
   (let [schema {:aka {:db/cardinality :db.cardinality/many}}
         db (d/db-with (d/empty-db schema)
-             [{:db/id 1 :name "Ivan" :aka ["IV" "Terrible"]}
-              {:db/id 2 :name "Petr" :age 37 :huh? false}])]
+                      [{:db/id 1 :name "Ivan" :aka ["IV" "Terrible"]}
+                       {:db/id 2 :name "Petr" :age 37 :huh? false}])]
     (is (= (d/empty-db schema)
-          (empty db)))
+           (empty db)))
     (is (= 6 (count db)))
     (is (= #{:schema :eavt :aevt :avet :max-eid :max-tx :rschema :pull-patterns :pull-attrs :hash}
           (set (keys db))))

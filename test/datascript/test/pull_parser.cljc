@@ -1,28 +1,27 @@
 (ns datascript.test.pull-parser
   (:require
-    #?(:cljd [cljd.test    :as t :refer [is are deftest testing]]
-       :default [clojure.test :as t :refer [is are deftest testing]])
+   #?(:cljd  [cljd.test :as t :refer        [is are deftest testing]]
+      :cljs [cljs.test    :as t :refer-macros [is are deftest testing]]
+      :clj  [clojure.test :as t :refer        [is are deftest testing]])
     [datascript.core :as d]
     [datascript.db :as db]
     [datascript.pull-parser :as dpp]
     #?(:cljd [cljd.core :refer [ExceptionInfo]])
     [datascript.test.core :as tdc :refer [#?(:cljd thrown-msg?)]]))
 
-(def *db
-  (delay
-    (d/empty-db
-      {:ref            {:db/valueType :db.type/ref}
-       :ref2           {:db/valueType :db.type/ref}
-       :ref3           {:db/valueType :db.type/ref}
-       :ns/ref         {:db/valueType :db.type/ref}
-       :multival       {:db/cardinality :db.cardinality/many}
-       :multiref       {:db/valueType :db.type/ref
-                        :db/cardinality :db.cardinality/many}
-       :component      {:db/valueType :db.type/ref
-                        :db/isComponent true}
-       :multicomponent {:db/valueType :db.type/ref
-                        :db/isComponent true
-                        :db/cardinality :db.cardinality/many}})))
+(def db (d/empty-db
+          {:ref            {:db/valueType :db.type/ref}
+           :ref2           {:db/valueType :db.type/ref}
+           :ref3           {:db/valueType :db.type/ref}
+           :ns/ref         {:db/valueType :db.type/ref}
+           :multival       {:db/cardinality :db.cardinality/many}
+           :multiref       {:db/valueType :db.type/ref
+                            :db/cardinality :db.cardinality/many}
+           :component      {:db/valueType :db.type/ref
+                            :db/isComponent true}
+           :multicomponent {:db/valueType :db.type/ref
+                            :db/isComponent true
+                            :db/cardinality :db.cardinality/many}}))
 
 (defn pattern [& {:as args}]
   (let [attrs (filter #(not= :db/id (:name %)) (:attrs args))]
@@ -32,11 +31,11 @@
   (dpp/map->PullAttr
     (merge
       {:name name :xform identity :as name}
-      (when (db/ref? @*db name) {:pattern dpp/default-pattern-ref})
+      (when (db/ref? db name) {:pattern dpp/default-pattern-ref})
       args)))
 
 (deftest test-parse-pattern
-  (are [pattern expected] (= expected (dpp/parse-pattern @*db pattern))
+  (are [pattern expected] (= expected (dpp/parse-pattern db pattern))
     [:normal]    (pattern :attrs [(attr :normal)])
     ['(:normal)] (pattern :attrs [(attr :normal)])
     [[:normal]]  (pattern :attrs [(attr :normal)])
@@ -131,10 +130,11 @@
     [{:ref '...}]  (pattern :attrs         [(attr :ref,            :ref? true,                 :pattern nil, :recursive? true, :recursion-limit nil)])
     [{:ref "..."}] (pattern :attrs         [(attr :ref,            :ref? true,                 :pattern nil, :recursive? true, :recursion-limit nil)])
     [{:_ref 100}]  (pattern :reverse-attrs [(attr :ref, :as :_ref, :ref? true, :reverse? true, :pattern nil, :recursive? true, :recursion-limit 100)])
-    [{:_ref '...}] (pattern :reverse-attrs [(attr :ref, :as :_ref, :ref? true, :reverse? true, :pattern nil, :recursive? true, :recursion-limit nil)]))
+    [{:_ref '...}] (pattern :reverse-attrs [(attr :ref, :as :_ref, :ref? true, :reverse? true, :pattern nil, :recursive? true, :recursion-limit nil)])
+  )
 
   (testing "Error reporting"
-    (are [pattern msg] (thrown-msg? msg (dpp/parse-pattern @*db pattern))
+    (are [pattern msg] (thrown-msg? msg (dpp/parse-pattern db pattern))
       ; refs
       [:_normal] "Expected reverse attribute having :db.type/ref, got: :_normal"
 
@@ -158,4 +158,11 @@
       ; map spec
       [{:normal [:normal2]}] "Expected attribute having :db.type/ref, got: :normal"
       [{'(:ref :limit 100) [:normal]}] "Expected limit attribute having :db.cardinality/many, got: :ref"
-      [{:ref :normal}] "Expected pattern to be sequential?, got: :normal")))
+      [{:ref :normal}] "Expected pattern to be sequential?, got: :normal"
+    )))
+
+
+(comment
+  (require 'datascript.test 'datascript.test.pull-parser :reload-all)
+  (dpp/parse-pattern db [:normal])
+  (clojure.test/test-ns 'datascript.test.pull-parser))

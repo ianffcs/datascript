@@ -1,15 +1,15 @@
 (ns ^:no-doc datascript.impl.entity
   (:refer-clojure :exclude [keys get])
   (:require [#?(:cljd cljd.core :cljs cljs.core :clj clojure.core) :as c]
-    [datascript.db :as db]
-    #?(:cljd ["dart:collection" :as dart-coll])))
+            [datascript.db :as db]
+            #?(:cljd ["dart:collection" :as dart-coll])))
 
 (declare entity ->Entity equiv-entity lookup-entity touch hash-entity)
 
 (defn- entid [db eid]
   (when (or (number? eid)
-          (sequential? eid)
-          (keyword? eid))
+            (sequential? eid)
+            (keyword? eid))
     (db/entid db eid)))
 
 (defn entity [db eid]
@@ -46,18 +46,9 @@
          [a (multival->js v)]
          [a v]))))
 
-#?(:cljs
-  (unchecked-set (.-prototype ES6Iterator) cljs.core/ITER_SYMBOL
-     (fn []
-       (this-as this# this#))))
-
-#?(:cljs
-  (unchecked-set (.-prototype ES6EntriesIterator) cljs.core/ITER_SYMBOL
-     (fn []
-       (this-as this# this#))))
-
 (deftype #?(:cljd #/(Entity K V) :default Entity) [db eid touched cache]
-  #?@(:cljd
+  #?@(
+      :cljd
       [^:mixin c/ToStringMixin
        ^:mixin c/EqualsEquivMixin
 
@@ -125,33 +116,33 @@
       :cljs
       [Object
        (toString [this]
-         (pr-str* this))
+                 (pr-str* this))
        (equiv [this other]
-         (equiv-entity this other))
+              (equiv-entity this other))
 
        ;; js/map interface
        (keys [this]
-         (es6-iterator (c/keys this)))
+             (es6-iterator (c/keys this)))
        (entries [this]
-         (es6-entries-iterator (js-seq this)))
+                (es6-entries-iterator (js-seq this)))
        (values [this]
-         (es6-iterator (map second (js-seq this))))
+               (es6-iterator (map second (js-seq this))))
        (has [this attr]
-         (not (nil? (.get this attr))))
+            (not (nil? (.get this attr))))
        (get [this attr]
-         (if (= attr ":db/id")
-           eid
-           (if (db/reverse-ref? attr)
-             (-> (-lookup-backwards db eid (db/reverse-ref attr) nil)
-               multival->js)
-             (cond-> (lookup-entity this attr)
-               (db/multival? db attr) multival->js))))
+            (if (= attr ":db/id")
+              eid
+              (if (db/reverse-ref? attr)
+                (-> (-lookup-backwards db eid (db/reverse-ref attr) nil)
+                    multival->js)
+                (cond-> (lookup-entity this attr)
+                  (db/multival? db attr) multival->js))))
        (forEach [this f]
-         (doseq [[a v] (js-seq this)]
-           (f v a this)))
+                (doseq [[a v] (js-seq this)]
+                  (f v a this)))
        (forEach [this f use-as-this]
-         (doseq [[a v] (js-seq this)]
-           (.call f use-as-this v a this)))
+                (doseq [[a v] (js-seq this)]
+                  (.call f use-as-this v a this)))
 
        ;; js fallbacks
        (key_set   [this] (to-array (c/keys this)))
@@ -163,17 +154,17 @@
 
        IHash
        (-hash [this]
-         (hash-entity this))
+              (hash-entity this))
 
        ISeqable
        (-seq [this]
-         (touch this)
-         (seq @cache))
+             (touch this)
+             (seq @cache))
 
        ICounted
        (-count [this]
-         (touch this)
-         (count @cache))
+               (touch this)
+               (count @cache))
 
        ILookup
        (-lookup [this attr]           (lookup-entity this attr nil))
@@ -181,17 +172,17 @@
 
        IAssociative
        (-contains-key? [this k]
-         (not= ::nf (lookup-entity this k ::nf)))
+                       (not= ::nf (lookup-entity this k ::nf)))
 
        IFn
        (-invoke [this k]
-         (lookup-entity this k))
+                (lookup-entity this k))
        (-invoke [this k not-found]
-         (lookup-entity this k not-found))
+                (lookup-entity this k not-found))
 
        IPrintWithWriter
        (-pr-writer [_ writer opts]
-         (-pr-writer (assoc @cache :db/id eid) writer opts))]
+                   (-pr-writer (assoc @cache :db/id eid) writer opts))]
 
       :clj
       [Object
@@ -218,14 +209,10 @@
 
        clojure.lang.IFn
        (invoke [e k]      (lookup-entity e k))
-       (invoke [e k not-found] (lookup-entity e k not-found))]))
+       (invoke [e k not-found] (lookup-entity e k not-found))
+       ]))
 
 (defn entity? [x] (instance? Entity x))
-
-#?(:cljs
-  (unchecked-set (.-prototype Entity) cljs.core/ITER_SYMBOL
-     (fn []
-       (this-as this# (.entries this#)))))
 
 #?(:cljd nil
    :clj
@@ -234,9 +221,9 @@
 
 (defn- equiv-entity [^Entity this that]
   (and
-    (instance? Entity that)
-    (identical? (.-db this) (.-db ^Entity that)) ; `=` and `hash` on db is expensive
-    (= (.-eid this) (.-eid ^Entity that))))
+   (instance? Entity that)
+   (identical? (.-db this) (.-db ^Entity that)) ; `=` and `hash` on db is expensive
+   (= (.-eid this) (.-eid ^Entity that))))
 
 (defn- hash-entity [^Entity e]
   (db/combine-hashes
@@ -275,8 +262,8 @@
 
 (defn- datoms->cache [db datoms]
   (reduce (fn [acc part]
-            (let [a (:a (first part))]
-              (assoc acc a (entity-attr db a part))))
+    (let [a (:a (first part))]
+      (assoc acc a (entity-attr db a part))))
     {} (partition-by :a datoms)))
 
 (defn touch [^#?(:cljd Entity? :default Entity) e]
@@ -285,8 +272,8 @@
     (when-not @(.-touched e)
       (when-let [datoms (not-empty (db/-search (.-db e) [(.-eid e)]))]
         (vreset! (.-cache e) (->> datoms
-                               (datoms->cache (.-db e))
-                               (touch-components (.-db e))))
+                                  (datoms->cache (.-db e))
+                                  (touch-components (.-db e))))
         (vreset! (.-touched e) true)))
     e))
 

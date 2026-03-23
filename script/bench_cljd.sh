@@ -9,11 +9,11 @@ mkdir -p tmp/cljdbench/src/cljd
 cat > tmp/cljdbench/deps.edn <<EOF
 {:paths ["src" "../../bench"]
  :deps {org.clojure/clojure {:mvn/version "1.11.1"}
-        tensegritics/clojuredart {:git/url "https://github.com/tensegritics/ClojureDart.git"
-                                  :sha "c56e2dc1bef1841a7ce58ce2546946dd0be414e1"}
-        io.github.wevre/transit-cljd {:git/tag "v0.8.36"
-                                      :git/sha "d9541d0"}
-        metosin/jsonista {:mvn/version "0.3.3"}
+        tensegritics/clojuredart
+        {:git/url "https://github.com/tensegritics/ClojureDart.git"
+         :sha "1a8c70ab4e8901a4c68ed4507f43966e9337b5fb"}
+        io.github.wevre/transit-cljd {:git/url "https://github.com/Roam-Research/transit-cljd.git"
+                                      :sha "9d4511f0ef50705641b084f432bab726c64a8832"}
         datascript/datascript {:local/root "../../"}}
  :cljd/opts {:main datascript.bench.datascript
              :kind :dart}}

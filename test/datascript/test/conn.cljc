@@ -1,17 +1,15 @@
 (ns datascript.test.conn
   (:require
-    #?(:cljd [cljd.test    :as t :refer [is are deftest testing]]
-       :default [clojure.test :as t :refer [is are deftest testing]])
+   #?(:cljd [cljd.test    :as t :refer        [is are deftest testing]]
+      :cljs [cljs.test    :as t :refer-macros [is are deftest testing]]
+      :clj  [clojure.test :as t :refer        [is are deftest testing]])
     [datascript.core :as d]
     [datascript.db :as db]
     [datascript.test.core :as tdc]))
 
-(def schema
-  {:aka {:db/cardinality :db.cardinality/many}})
-
-(def datoms
-  #{(d/datom 1 :age  17)
-    (d/datom 1 :name "Ivan")})
+(def schema { :aka { :db/cardinality :db.cardinality/many }})
+(def datoms #{(d/datom 1 :age  17)
+              (d/datom 1 :name "Ivan")})
 
 (deftest test-ways-to-create-conn
   (let [conn (d/create-conn)]
@@ -44,7 +42,7 @@
         _       (d/listen! conn #(reset! report %))
         datoms' #{(d/datom 1 :age 20)
                   (d/datom 1 :sex :male)}
-        schema' {:email {:db/unique :db.unique/identity}}
+        schema' { :email { :db/unique :db.unique/identity }}
         db'     (d/init-db datoms' schema')]
     (d/reset-conn! conn db' :meta)
     (is (= datoms' (set (d/datoms @conn :eavt))))
@@ -60,5 +58,4 @@
               [1 :name "Ivan" false]
               [1 :age  20     true]
               [1 :sex  :male  true]]
-            (map (juxt :e :a :v :added) tx-data))))))
-
+             (map (juxt :e :a :v :added) tx-data))))))

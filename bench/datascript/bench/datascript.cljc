@@ -2,8 +2,8 @@
   (:require
    [datascript.core :as d]
    [datascript.bench.bench :as bench]
-   #?@(:cljd [cljd.reader :as edn-reader]
-       :clj  [jsonista.core :as jsonista])))
+   #?@(:cljd [["dart:convert" :as dart:convert]]
+       :clj  [[jsonista.core :as jsonista]])))
 
 #?(:cljs (enable-console-print!))
 
@@ -222,16 +222,16 @@
 (defn bench-freeze []
   #?(:cljd
      (bench/bench
-       (-> @*serialize-db d/serializable pr-str))
+       (-> @*serialize-db d/serializable dart:convert/json.encode))
      :default
      (bench/bench
        (-> @*serialize-db (d/serializable) #?(:clj (jsonista/write-value-as-string mapper) :cljs js/JSON.stringify)))))
 
 (defn bench-thaw []
   #?(:cljd
-     (let [edn (-> @*serialize-db d/serializable pr-str)]
+     (let [json (-> @*serialize-db d/serializable dart:convert/json.encode)]
        (bench/bench
-         (-> edn edn-reader/read-string d/from-serializable)))
+         (-> json dart:convert/json.decode d/from-serializable)))
      :default
      (let [json (-> @*serialize-db (d/serializable) #?(:clj (jsonista/write-value-as-string mapper) :cljs js/JSON.stringify))]
        (bench/bench

@@ -633,7 +633,7 @@
         [related (assoc context :rels unrelated)]))))
 
 (defn join-unrelated [context rel]
-  (case (long (-size rel))
+  (case #?(:cljd (-size rel) :default (long (-size rel)))
     0 empty-context
     1 (update context :consts merge (rel->consts rel))
     (update context :rels conj rel)))

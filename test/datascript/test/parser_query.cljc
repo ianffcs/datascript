@@ -1,15 +1,17 @@
 (ns datascript.test.parser-query
   (:require
-    #?(:cljd [cljd.test :as t :refer [is are deftest testing]]
-       :default [clojure.test :as t :refer [is are deftest testing]])
-    #?(:cljd [cljd.core :refer [ExceptionInfo]])
+   #?(:cljd  [cljd.test :as t :refer        [is are deftest testing]]
+      :cljs [cljs.test    :as t :refer-macros [is are deftest testing]]
+      :clj  [clojure.test :as t :refer        [is are deftest testing]])
     [datascript.core :as d]
     [datascript.db :as db]
     [datascript.parser :as dp]
     [datascript.test.core :as tdc :refer [#?(:cljd thrown-msg?)]])
-  #?(:cljd nil :clj
-     (:import
-       [clojure.lang ExceptionInfo])))
+    #?(:cljd (:require [cljd.core :refer [ExceptionInfo]])
+       :clj
+       (:import [clojure.lang ExceptionInfo])))
+
+
 
 (deftest validation
   (are [q msg] (thrown-msg? msg (dp/parse-query q))
@@ -44,4 +46,5 @@
     "Where uses unknown source vars: [$2]"
 
     '[:find ?e :where (rule ?e)]
-    "Missing rules var '%' in :in"))
+    "Missing rules var '%' in :in"
+    ))
