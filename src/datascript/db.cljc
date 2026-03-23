@@ -11,7 +11,7 @@
     [me.tonsky.persistent-sorted-set :as set]
     [me.tonsky.persistent-sorted-set.arrays :as arrays])
   #?(:cljd nil :clj (:import clojure.lang.IFn$OOL))
-  #?(:cljs (:require-macros [datascript.db :refer [case-tree combine-cmp declare+ defn+ defcomp defrecord-updatable int-compare validate-attr validate-val]]))
+  #?(:cljs (:require-macros [datascript.db :refer [case-tree combine-cmp declare+ defn+ defcomp defrecord-updatable int-compare raise validate-attr validate-val]]))
   (:refer-clojure :exclude [seqable? #?(:cljd nil :clj update)]))
 
 #?(:cljd nil :clj (set! *warn-on-reflection* true))
