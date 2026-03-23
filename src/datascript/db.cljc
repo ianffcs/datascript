@@ -1484,16 +1484,16 @@
   (let [indexing? (indexing? db (.-a datom))]
     (if (datom-added datom)
       (cond-> db
-        true      (update :eavt #?@(:cljd (conj datom) :default (set/conj datom cmp-datoms-eavt-quick)))
-        true      (update :aevt #?@(:cljd (conj datom) :default (set/conj datom cmp-datoms-aevt-quick)))
-        indexing? (update :avet #?@(:cljd (conj datom) :default (set/conj datom cmp-datoms-avet-quick)))
+        true      (update :eavt set/conj datom cmp-datoms-eavt-quick)
+        true      (update :aevt set/conj datom cmp-datoms-aevt-quick)
+        indexing? (update :avet set/conj datom cmp-datoms-avet-quick)
         true      (advance-max-eid (.-e datom))
         true      (assoc :hash (atom 0)))
       (if-some [removing (fsearch db [(.-e datom) (.-a datom) (.-v datom)])]
         (cond-> db
-          true      (update :eavt #?@(:cljd (disj removing) :default (set/disj removing cmp-datoms-eavt-quick)))
-          true      (update :aevt #?@(:cljd (disj removing) :default (set/disj removing cmp-datoms-aevt-quick)))
-          indexing? (update :avet #?@(:cljd (disj removing) :default (set/disj removing cmp-datoms-avet-quick)))
+          true      (update :eavt set/disj removing cmp-datoms-eavt-quick)
+          true      (update :aevt set/disj removing cmp-datoms-aevt-quick)
+          indexing? (update :avet set/disj removing cmp-datoms-avet-quick)
           true      (assoc :hash (atom 0)))
         db))))
 
