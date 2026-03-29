@@ -2,7 +2,7 @@
  {persistent-sorted-set/persistent-sorted-set
   {:git/url "https://github.com/ianffcs/persistent-sorted-set.git"
    :git/branch "cljd-support"
-   :git/sha "0688b5880a27dea4dbf56d52048c3b69d16a7d9e"}
+   :git/sha "4076c3290b5b8913bd62b88d9256cb4d9103ac6c"}
   io.github.tonsky/extend-clj {:mvn/version "0.1.0"}}
 
  :aliases

@@ -6,7 +6,7 @@
    [datascript.db :as db]
    [datascript.pull-api :as pull-api]
    [datascript.query :as q]
-   [me.tonsky.persistent-sorted-set :as set]))
+   [me.tonsky.persistent-sorted-set.async :as async-set]))
 
 (defprotocol IStorage
   (-store [_ addr+data-seq])
@@ -37,18 +37,19 @@
 (defn- restore-datom [[e a v tx]]
   (db/datom e a v tx))
 
-(defn- store-node! [node level *buf]
-  (let [node-keys (mapv serializable-datom (.-keys node))]
-    (if (== 0 level)
+(defn- store-node! [node *buf]
+  (let [node      (dart/await (async-set/async-node-materialize node))
+        node-keys (mapv serializable-datom (.-keys node))]
+    (if (instance? async-set/AsyncLeaf node)
       (let [addr (gen-addr)]
         (vswap! *buf conj! [addr {:keys node-keys}])
-        (dart/await addr))
+        addr)
       (let [addrs (dart/await
                     (dart:async/Future.wait
-                      (mapv #(store-node! % (dec level) *buf) (.-pointers node))))
+                      (mapv #(store-node! % *buf) (.-pointers node))))
             addr  (gen-addr)]
         (vswap! *buf conj! [addr {:keys node-keys :addresses addrs}])
-        (dart/await addr)))))
+        addr))))
 
 (defn store-impl!
   ([db s]
@@ -56,16 +57,16 @@
   ([db s _force?]
    (let [{:keys [eavt aevt avet schema max-eid max-tx]} db
          *buf      (volatile! (transient []))
-         eavt-addr (dart/await (store-node! (.-root eavt) (.-shift eavt) *buf))
-         aevt-addr (dart/await (store-node! (.-root aevt) (.-shift aevt) *buf))
-         avet-addr (dart/await (store-node! (.-root avet) (.-shift avet) *buf))
+         eavt-addr (dart/await (store-node! (.-root eavt) *buf))
+         aevt-addr (dart/await (store-node! (.-root aevt) *buf))
+         avet-addr (dart/await (store-node! (.-root avet) *buf))
          root-data {:schema   schema
                     :max-eid  max-eid
                     :max-tx   max-tx
                     :max-addr @*max-addr
-                    :eavt {:root-addr eavt-addr :shift (.-shift eavt) :cnt (.-cnt eavt)}
-                    :aevt {:root-addr aevt-addr :shift (.-shift aevt) :cnt (.-cnt aevt)}
-                    :avet {:root-addr avet-addr :shift (.-shift avet) :cnt (.-cnt avet)}}]
+                    :eavt {:root-addr eavt-addr :cnt (.-cnt eavt)}
+                    :aevt {:root-addr aevt-addr :cnt (.-cnt aevt)}
+                    :avet {:root-addr avet-addr :cnt (.-cnt avet)}}]
      (vswap! *buf conj! [root-addr root-data])
      (vswap! *buf conj! [tail-addr []])
      (dart/await (-store s (persistent! @*buf)))
@@ -79,21 +80,27 @@
   ([db s]
    (dart/await (store-impl! db s false))))
 
-(defn- load-node [s data]
-  (let [{:keys [keys addresses]} data
-        real-keys (to-array (map restore-datom keys))]
+(defn- build-node [storage {:keys [keys addresses]}]
+  (let [real-keys (to-array (map restore-datom keys))]
     (if addresses
-      (let [children (dart/await
-                       (dart:async/Future.wait
-                         (mapv (fn [addr]
-                                 (dart/await (load-node s (dart/await (-restore s addr)))))
-                           addresses)))]
-        (set/->Node real-keys (to-array children)))
-      (set/->Leaf real-keys))))
+      (async-set/->async-node
+        real-keys
+        (to-array (map (fn [addr]
+                         (async-set/->async-lazy-node storage addr nil 0))
+                       addresses)))
+      (async-set/->async-leaf real-keys))))
 
-(defn- load-btset [s root-addr shift cnt cmp]
+(defn- make-ds-storage [s]
+  (reify async-set/IStorage
+    (restore-node [this address]
+      (future
+        (when-some [data (dart/await (-restore s address))]
+          (build-node this data))))))
+
+(defn- load-btset [s root-addr cnt cmp]
   (when-some [root-data (dart/await (-restore s root-addr))]
-    (set/->BTSet (dart/await (load-node s root-data)) shift cnt cmp nil nil)))
+    (let [storage (make-ds-storage s)]
+      (async-set/async-from-root (build-node storage root-data) cnt cmp))))
 
 (defn restore-impl
   ([s]
@@ -105,9 +112,9 @@
      (let [tail (dart/await (-restore s tail-addr))
            db (db/restore-db
                 {:schema schema
-                 :eavt (dart/await (load-btset s (:root-addr eavt) (:shift eavt) (:cnt eavt) db/cmp-datoms-eavt))
-                 :aevt (dart/await (load-btset s (:root-addr aevt) (:shift aevt) (:cnt aevt) db/cmp-datoms-aevt))
-                 :avet (dart/await (load-btset s (:root-addr avet) (:shift avet) (:cnt avet) db/cmp-datoms-avet))
+                 :eavt (dart/await (load-btset s (:root-addr eavt) (:cnt eavt) db/cmp-datoms-eavt))
+                 :aevt (dart/await (load-btset s (:root-addr aevt) (:cnt aevt) db/cmp-datoms-aevt))
+                 :avet (dart/await (load-btset s (:root-addr avet) (:cnt avet) db/cmp-datoms-avet))
                  :max-eid max-eid
                  :max-tx max-tx})]
        [db (mapv #(mapv restore-datom %) (or tail []))]))))
@@ -144,7 +151,7 @@
           tail' (swap! *tx-tail conj (:tx-data report))]
       (reset! *conn db)
       (if (> (transduce (map count) + 0 tail')
-             set/max-len)
+             async-set/max-len)
         (do
           (dart/await (store-impl! db s false))
           (reset! *tx-tail []))
