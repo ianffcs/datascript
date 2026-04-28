@@ -85,10 +85,10 @@
     [['limit :multival 100]]   (pattern :attrs [(attr :multival, :multival? true, :limit 100)])
 
     ; default
-    ['(:multival :default :xyz)]  (pattern :attrs [(attr :multival, :multival? true, :limit 1000, :default :xyz)])
-    ['(default :multival :xyz)]   (pattern :attrs [(attr :multival, :multival? true, :limit 1000, :default :xyz)])
-    ['("default" :multival :xyz)] (pattern :attrs [(attr :multival, :multival? true, :limit 1000, :default :xyz)])
-    [['default :multival :xyz]]   (pattern :attrs [(attr :multival, :multival? true, :limit 1000, :default :xyz)])
+    ['(:multival :default :xyz)]  (pattern :attrs [(attr :multival, :multival? true, :limit 1000, :default-val :xyz)])
+    ['(default :multival :xyz)]   (pattern :attrs [(attr :multival, :multival? true, :limit 1000, :default-val :xyz)])
+    ['("default" :multival :xyz)] (pattern :attrs [(attr :multival, :multival? true, :limit 1000, :default-val :xyz)])
+    [['default :multival :xyz]]   (pattern :attrs [(attr :multival, :multival? true, :limit 1000, :default-val :xyz)])
 
     ; xform
     [[:normal :xform 'inc]] (pattern :attrs [(attr :normal :xform inc)])
@@ -96,18 +96,18 @@
     #?@(:cljd [] :clj [[[:normal :xform 'datascript.db/datom?]] (pattern :attrs [(attr :normal :xform db/datom?)])])
 
     ; combined
-    ['(:multival :limit 100 :default :xyz :as :other :xform inc)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100, :as :other, :xform inc)])
-    ['(:multival :xform inc :as :other :default :xyz :limit 100)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100, :as :other, :xform inc)])
-    ['((:multival :limit 100) :default :xyz)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
-    ['((:multival :default :xyz) :limit 100)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
+    ['(:multival :limit 100 :default :xyz :as :other :xform inc)] (pattern :attrs [(attr :multival, :multival? true, :default-val :xyz, :limit 100, :as :other, :xform inc)])
+    ['(:multival :xform inc :as :other :default :xyz :limit 100)] (pattern :attrs [(attr :multival, :multival? true, :default-val :xyz, :limit 100, :as :other, :xform inc)])
+    ['((:multival :limit 100) :default :xyz)] (pattern :attrs [(attr :multival, :multival? true, :default-val :xyz, :limit 100)])
+    ['((:multival :default :xyz) :limit 100)] (pattern :attrs [(attr :multival, :multival? true, :default-val :xyz, :limit 100)])
 
     ; combined
-    ['(limit (default :multival :xyz) 100)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
-    ['(default (limit :multival 100) :xyz)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
-    ['(limit (:multival :default :xyz) 100)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
-    ['(default (:multival :limit 100) :xyz)] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
-    ['(((limit :multival 100) :default :xyz))] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
-    ['(((default :multival :xyz) :limit 100))] (pattern :attrs [(attr :multival, :multival? true, :default :xyz, :limit 100)])
+    ['(limit (default :multival :xyz) 100)] (pattern :attrs [(attr :multival, :multival? true, :default-val :xyz, :limit 100)])
+    ['(default (limit :multival 100) :xyz)] (pattern :attrs [(attr :multival, :multival? true, :default-val :xyz, :limit 100)])
+    ['(limit (:multival :default :xyz) 100)] (pattern :attrs [(attr :multival, :multival? true, :default-val :xyz, :limit 100)])
+    ['(default (:multival :limit 100) :xyz)] (pattern :attrs [(attr :multival, :multival? true, :default-val :xyz, :limit 100)])
+    ['(((limit :multival 100) :default :xyz))] (pattern :attrs [(attr :multival, :multival? true, :default-val :xyz, :limit 100)])
+    ['(((default :multival :xyz) :limit 100))] (pattern :attrs [(attr :multival, :multival? true, :default-val :xyz, :limit 100)])
 
     ; repeated
     [:multival [:multival :default :xyz] [:multival :limit 100]] (pattern :attrs [(attr :multival, :multival? true, :limit 100)])

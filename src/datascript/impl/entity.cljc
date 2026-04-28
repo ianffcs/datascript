@@ -1,7 +1,7 @@
 (ns ^:no-doc datascript.impl.entity
   (:refer-clojure :exclude [keys get])
   (:require [#?(:cljd cljd.core :cljs cljs.core :clj clojure.core) :as c]
-            [datascript.db :as db]
+            [datascript.db :as db #?@(:cljd [:refer [Datom]])]
             #?(:cljd ["dart:collection" :as dart-coll])))
 
 (declare entity ->Entity equiv-entity lookup-entity touch hash-entity)
@@ -21,17 +21,17 @@
 (defn- entity-attr [db a datoms]
   (if (db/multival? db a)
     (if (db/ref? db a)
-      (reduce #(conj %1 (entity db (:v %2))) #{} datoms)
-      (reduce #(conj %1 (:v %2)) #{} datoms))
+      (reduce #(conj %1 (entity db #?(:cljd (.-v ^Datom %2) :default (:v %2)))) #{} datoms)
+      (reduce #(conj %1 #?(:cljd (.-v ^Datom %2) :default (:v %2))) #{} datoms))
     (if (db/ref? db a)
-      (entity db (:v (first datoms)))
-      (:v (first datoms)))))
+      (entity db #?(:cljd (.-v ^Datom (first datoms)) :default (:v (first datoms))))
+      #?(:cljd (.-v ^Datom (first datoms)) :default (:v (first datoms))))))
 
 (defn- -lookup-backwards [db eid attr not-found]
   (if-let [datoms (not-empty (db/-search db [nil attr eid]))]
     (if (db/component? db attr)
-      (entity db (:e (first datoms)))
-      (reduce #(conj %1 (entity db (:e %2))) #{} datoms))
+      (entity db #?(:cljd (.-e ^Datom (first datoms)) :default (:e (first datoms))))
+      (reduce #(conj %1 (entity db #?(:cljd (.-e ^Datom %2) :default (:e %2)))) #{} datoms))
     not-found))
 
 #?(:cljs
@@ -262,9 +262,9 @@
 
 (defn- datoms->cache [db datoms]
   (reduce (fn [acc part]
-    (let [a (:a (first part))]
+    (let [a #?(:cljd (.-a ^Datom (first part)) :default (:a (first part)))]
       (assoc acc a (entity-attr db a part))))
-    {} (partition-by :a datoms)))
+    {} (partition-by #?(:cljd #(.-a ^Datom %) :default :a) datoms)))
 
 (defn touch [^#?(:cljd Entity? :default Entity) e]
   {:pre [(or (nil? e) (entity? e))]}

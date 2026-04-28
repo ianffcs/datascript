@@ -114,14 +114,14 @@
 #?(:cljd
    (defn join-tuples [t1 ^List idxs1
                       t2 ^List idxs2]
-     (let [l1  (alength idxs1)
-           l2  (alength idxs2)
+     (let [l1  (int (alength idxs1))
+           l2  (int (alength idxs2))
            res (make-array (+ l1 l2))]
        (if (instance? List t1)
          (dotimes [i l1] (aset res i (aget ^List t1 (aget idxs1 i))))
          (dotimes [i l1] (aset res i (get t1 (aget idxs1 i)))))
        (if (instance? List t2)
-         (dotimes [i l2] (aset res (+ l1 i) (get ^List t2 (aget idxs2 i))))
+         (dotimes [i l2] (aset res (+ l1 i) (aget ^List t2 (aget idxs2 i))))
          (dotimes [i l2] (aset res (+ l1 i) (get t2 (aget idxs2 i)))))
        res))
    :clj

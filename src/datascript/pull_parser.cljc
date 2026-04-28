@@ -4,7 +4,7 @@
     [datascript.db :as db]
     [datascript.util :as util]))
 
-(defrecord PullAttr [as default limit name pattern recursion-limit recursive? reverse? xform multival? ref? component?])
+(defrecord PullAttr [as default-val limit name pattern recursion-limit recursive? reverse? xform multival? ref? component?])
 
 (defrecord PullPattern [attrs first-attr last-attr reverse-attrs wildcard?])
 
@@ -83,7 +83,7 @@
           :limit   (do
                      (check-limit db pull-attr value)
                      (assoc pull-attr :limit value))
-          :default (assoc pull-attr :default value)
+          :default (assoc pull-attr :default-val value)
           :xform   (assoc pull-attr :xform (resolve-xform value))
           #_else   (check false "one of :as, :limit, :default, :xform" attr-spec)))
       pull-attr
@@ -104,7 +104,7 @@
       (check (= (count attr-spec) 3) expected attr-spec)
       (let [[_ attr default] attr-spec
             pull-attr (parse-attr-spec db attr)]
-        (assoc pull-attr :default default)))))
+        (assoc pull-attr :default-val default)))))
 
 (defn parse-attr-spec [db attr-spec]
   (cond

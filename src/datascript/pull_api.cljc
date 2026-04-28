@@ -8,7 +8,8 @@
    [datascript.lru :as lru]
    [datascript.util :as util]
    #?(:cljd nil
-      :default [me.tonsky.persistent-sorted-set :as set]))
+      :default [me.tonsky.persistent-sorted-set :as set])
+   #?(:cljd [cljd.core :refer [Keyword]]))
   #?(:cljd nil
      :clj
      (:import
@@ -32,6 +33,7 @@
   (if (nil? xs)
     (list x)
     #?(:cljd (-conj xs x) :clj (.cons xs x) :cljs (-conj xs x))))
+
 
 (defn- assoc-some! [m k v]
   (if (nil? v) m (assoc! m k v)))
@@ -148,7 +150,24 @@
 
        :let [#?(:cljd ^Datom? datom :default ^Datom datom) (first-seq datoms)
              cmp          (when (and datom attr)
-                            (compare (.-name attr) (.-a datom)))
+                            #?(:cljd
+                               (let [^Keyword kw-a (.-name attr)
+                                     ^Keyword kw-b (.-a datom)]
+                                 (if (identical? kw-a kw-b)
+                                   0
+                                   (let [ns-a (.-ns kw-a)
+                                         ns-b (.-ns kw-b)]
+                                     (if (identical? ns-a ns-b)
+                                       (int (.compareTo (.-name kw-a) (.-name kw-b)))
+                                       (if (nil? ns-a)
+                                         -1
+                                         (if (nil? ns-b)
+                                           1
+                                           (let [c (int (.compareTo ns-a ns-b))]
+                                             (if (== 0 c)
+                                               (int (.compareTo (.-name kw-a) (.-name kw-b)))
+                                               c))))))))
+                               :default (compare (.-name attr) (.-a datom))))
              attr-ahead?  (or (nil? attr) (and cmp (pos? cmp)))
              datom-ahead? (or (nil? datom) (and cmp (neg? cmp)))]
 
@@ -171,8 +190,8 @@
        (recur acc (first-seq attrs) (next-seq attrs) datoms)
 
        ;; default
-       (and datom-ahead? (some? (#?(:cljd :default :clj .-default :cljs :default) attr)))
-       (recur (assoc! acc (.-as attr) (#?(:cljd :default :clj .-default :cljs :default) attr)) (first-seq attrs) (next-seq attrs) datoms)
+       (and datom-ahead? (some? (.-default-val attr)))
+       (recur (assoc! acc (.-as attr) (.-default-val attr)) (first-seq attrs) (next-seq attrs) datoms)
 
        ;; xform
        datom-ahead?
@@ -238,8 +257,8 @@
 
        :do (visit context :db.pull/reverse nil name id)
 
-       (and (empty? datoms) (some? (#?(:cljd :default :clj .-default :cljs :default) attr)))
-       (recur (assoc! acc (.-as attr) (#?(:cljd :default :clj .-default :cljs :default) attr)) (first-seq attrs) (next-seq attrs))
+       (and (empty? datoms) (some? (.-default-val attr)))
+       (recur (assoc! acc (.-as attr) (.-default-val attr)) (first-seq attrs) (next-seq attrs))
 
        (empty? datoms)
        (recur acc (first-seq attrs) (next-seq attrs))
@@ -359,26 +378,47 @@
      datoms
      id)))
 
-(defn pull-impl [parsed-opts id]
-  (let [{^Context context :context
-         ^PullPattern pattern :pattern} parsed-opts]
-    (when-some [eid (db/entid (.-db context) id)]
-      (loop [stack (list (attrs-frame context #{} {} pattern eid))]
-        (util/cond+
-          :let [last   (first-seq stack)
-                stack' (next-seq stack)]
+#?(:cljd
+   (defn pull-impl [parsed-opts id]
+     (let [{^Context context :context
+            ^PullPattern pattern :pattern} parsed-opts]
+       (when-some [eid (db/entid (.-db context) id)]
+         (let [stack (.empty #/(List dynamic) .growable true)]
+           (.add stack (attrs-frame context #{} {} pattern eid))
+           (loop []
+             (let [top (.removeLast stack)]
+               (if (instance? ResultFrame top)
+                 (if (.isEmpty stack)
+                   (.-value ^ResultFrame top)
+                   (do
+                     (.add stack (-merge (.removeLast stack) top))
+                     (recur)))
+                 (let [result (-run top context)]
+                   (.add stack (. result "[]" 0))
+                   (when (> (.-length result) 1)
+                     (.add stack (. result "[]" 1)))
+                   (recur)))))))))
+   :default
+   (defn pull-impl [parsed-opts id]
+     (let [{^Context context :context
+            ^PullPattern pattern :pattern} parsed-opts]
+       (when-some [eid (db/entid (.-db context) id)]
+         (loop [stack (list (attrs-frame context #{} {} pattern eid))]
+           (util/cond+
+             :let [last   (first-seq stack)
+                   stack' (next-seq stack)]
 
-          (not (instance? ResultFrame last))
-          (recur (reduce conj-seq stack' (-run last context)))
+             (not (instance? ResultFrame last))
+             (recur (reduce conj-seq stack' (-run last context)))
 
-          (nil? stack')
-          (.-value ^ResultFrame last)
+             (nil? stack')
+             (.-value ^ResultFrame last)
 
-          :let [penultimate (first-seq stack')
-                stack''     (next-seq stack')]
+             :let [penultimate (first-seq stack')
+                   stack''     (next-seq stack')]
 
-          :else
-          (recur (conj-seq stack'' (-merge penultimate last))))))))
+             :else
+             (recur (conj-seq stack'' (-merge penultimate last)))))))))
 
 (defn parse-opts
   ([db pattern] (parse-opts db pattern nil))

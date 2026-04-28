@@ -59,13 +59,22 @@
      (let [[title body] (if (string? title)
                          [title body]
                          ["unknown-bench" (cons title body)])]
-       (if #?(:cljd/clj-host true :default (:ns &env))
+       (cond
+         #?(:cljd/clj-host true :default false)
+         `(let [_#     (dart/await (dotime *warmup-ms* ~@body))
+                times# (loop [i# (int 0) acc# []]
+                         (if (< i# *samples*)
+                           (recur (inc i#) (conj acc# (dart/await (dotime *bench-ms* ~@body))))
+                           acc#))]
+            {:mean-ms (median times#)})
+         (:ns &env)
          `(let [_#     (dotime *warmup-ms* ~@body)
                 times# (mapv
                          (fn [_#]
                            (dotime *bench-ms* ~@body))
                          (range *samples*))]
             {:mean-ms (median times#)})
+         :else
          `(let [_#      (dotime *warmup-ms* ~@body)
                 _#      (when *profile* (clj-async-profiler/start {}))
                 times#  (mapv

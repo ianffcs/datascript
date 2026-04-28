@@ -2,7 +2,9 @@
   (:require
    [datascript.core :as d]
    [datascript.bench.bench :as bench]
-   #?@(:cljd [["dart:convert" :as dart:convert]]
+   #?@(:cljd [["dart:convert" :as dart:convert]
+              [datascript.db :as ddb]
+              [me.tonsky.persistent-sorted-set.async :as async-set]]
        :clj  [[jsonista.core :as jsonista]])))
 
 #?(:cljs (enable-console-print!))
@@ -237,35 +239,100 @@
        (bench/bench
          (-> json #?(:clj (jsonista/read-value mapper) :cljs js/JSON.parse) d/from-serializable)))))
 
+#?(:cljd
+   (do
+     (def *async-datoms
+       (delay
+         (into []
+           (for [p @bench/*people20k
+                 :let [id (int/parse (:db/id p))]
+                 [k v] p
+                 :when (not= k :db/id)]
+             (d/datom id k v)))))
+
+     (defn bench-async-init []
+       (bench/bench
+         (dart/await (async-set/async-from-sequential ddb/cmp-datoms-eavt-cmp @*async-datoms))))
+
+     (defn bench-async-add-1 []
+       (bench/bench
+         (loop [s  (async-set/async-sorted-set ddb/cmp-datoms-eavt-cmp)
+                ps (seq @bench/*people20k)]
+           (if ps
+             (let [p  (first ps)
+                   id (int/parse (:db/id p))
+                   s1 (dart/await (async-set/async-conj s  (d/datom id :name      (:name p))      ddb/cmp-datoms-eavt-cmp))
+                   s2 (dart/await (async-set/async-conj s1 (d/datom id :last-name (:last-name p)) ddb/cmp-datoms-eavt-cmp))
+                   s3 (dart/await (async-set/async-conj s2 (d/datom id :sex       (:sex p))       ddb/cmp-datoms-eavt-cmp))
+                   s4 (dart/await (async-set/async-conj s3 (d/datom id :age       (:age p))       ddb/cmp-datoms-eavt-cmp))
+                   s5 (dart/await (async-set/async-conj s4 (d/datom id :salary    (:salary p))    ddb/cmp-datoms-eavt-cmp))]
+               (recur s5 (next ps)))
+             s))))
+
+     (defn bench-async-add-all []
+       (bench/bench
+         (loop [s  (async-set/async-sorted-set ddb/cmp-datoms-eavt-cmp)
+                ds (seq @*async-datoms)]
+           (if ds
+             (recur (dart/await (async-set/async-conj s (first ds) ddb/cmp-datoms-eavt-cmp)) (next ds))
+             s))))
+
+     (defn bench-async-retract []
+       (let [s (dart/await (async-set/async-from-sequential ddb/cmp-datoms-eavt-cmp @*async-datoms))]
+         (bench/bench
+           (loop [set s
+                  ds  (seq @*async-datoms)]
+             (if ds
+               (recur (dart/await (async-set/async-disj set (first ds) ddb/cmp-datoms-eavt-cmp)) (next ds))
+               set)))))
+
+     (defn bench-async-slice []
+       (let [s (dart/await (async-set/async-from-sequential ddb/cmp-datoms-eavt-cmp @*async-datoms))]
+         (bench/bench
+           (dart/await (async-set/async-slice s
+                         (ddb/min-datom (d/datom 9000 nil nil ddb/tx0))
+                         (ddb/max-datom (d/datom 11000 nil nil ddb/txmax))
+                         ddb/cmp-datoms-eavt-cmp)))))
+
+     ))
+
 (def benches
-  {"add-1"              bench-add-1
-   "add-5"              bench-add-5
-   "add-all"            bench-add-all
-   "init"               bench-init
-   "find-datoms"        bench-find-datoms
-   "find-datom"         bench-find-datom
-   "retract-5"          bench-retract-5
-   "q1"                 bench-q1
-   "q2"                 bench-q2
-   "q3"                 bench-q3
-   "q4"                 bench-q4
-   "q5-shortcircuit"    bench-q5-shortcircuit
-   "qpred1"             bench-qpred1
-   "qpred2"             bench-qpred2
-   "pull-one-entities"  bench-pull-one-entities
-   "pull-one"           bench-pull-one
-   "pull-many-entities" bench-pull-many-entities
-   "pull-many"          bench-pull-many
-   "pull-wildcard"      bench-pull-wildcard
-   "rules-wide-3x3"     bench-rules-wide-3x3
-   "rules-wide-5x3"     bench-rules-wide-5x3
-   "rules-wide-7x3"     bench-rules-wide-7x3
-   "rules-wide-4x6"     bench-rules-wide-4x6
-   "rules-long-10x3"    bench-rules-long-10x3
-   "rules-long-30x3"    bench-rules-long-30x3
-   "rules-long-30x5"    bench-rules-long-30x5
-   "freeze"             bench-freeze
-   "thaw"               bench-thaw})
+  (merge
+    {"add-1"              bench-add-1
+     "add-5"              bench-add-5
+     "add-all"            bench-add-all
+     "init"               bench-init
+     "find-datoms"        bench-find-datoms
+     "find-datom"         bench-find-datom
+     "retract-5"          bench-retract-5
+     "q1"                 bench-q1
+     "q2"                 bench-q2
+     "q3"                 bench-q3
+     "q4"                 bench-q4
+     "q5-shortcircuit"    bench-q5-shortcircuit
+     "qpred1"             bench-qpred1
+     "qpred2"             bench-qpred2
+     "pull-one-entities"  bench-pull-one-entities
+     "pull-one"           bench-pull-one
+     "pull-many-entities" bench-pull-many-entities
+     "pull-many"          bench-pull-many
+     "pull-wildcard"      bench-pull-wildcard
+     "rules-wide-3x3"     bench-rules-wide-3x3
+     "rules-wide-5x3"     bench-rules-wide-5x3
+     "rules-wide-7x3"     bench-rules-wide-7x3
+     "rules-wide-4x6"     bench-rules-wide-4x6
+     "rules-long-10x3"    bench-rules-long-10x3
+     "rules-long-30x3"    bench-rules-long-30x3
+     "rules-long-30x5"    bench-rules-long-30x5
+     "freeze"             bench-freeze
+     "thaw"               bench-thaw}
+    #?(:cljd
+       {"async-init"    bench-async-init
+        "async-add-1"   bench-async-add-1
+        "async-add-all" bench-async-add-all
+        "async-retract" bench-async-retract
+        "async-slice"   bench-async-slice}
+       :default {})))
 
 (defn ^:export -main
   "clj -A:bench -M -m datascript.bench.datascript [--profile] (add-1 | add-5 | ...)*"
@@ -281,7 +348,7 @@
               :let [fn (benches name)]]
         (if (nil? fn)
           (println "Unknown benchmark:" name)
-          (let [{:keys [mean-ms file]} (fn)]
+          (let [{:keys [mean-ms file]} #?(:cljd (dart/await (fn)) :default (fn))]
             (println
               (bench/right-pad name (count longest))
               " "

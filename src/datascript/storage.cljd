@@ -6,6 +6,7 @@
    [datascript.db :as db]
    [datascript.pull-api :as pull-api]
    [datascript.query :as q]
+   [me.tonsky.persistent-sorted-set :as set]
    [me.tonsky.persistent-sorted-set.async :as async-set]))
 
 (defprotocol IStorage
@@ -38,18 +39,38 @@
   (db/datom e a v tx))
 
 (defn- store-node! [node *buf]
-  (let [node      (dart/await (async-set/async-node-materialize node))
-        node-keys (mapv serializable-datom (.-keys node))]
-    (if (instance? async-set/AsyncLeaf node)
-      (let [addr (gen-addr)]
-        (vswap! *buf conj! [addr {:keys node-keys}])
-        addr)
-      (let [addrs (dart/await
-                    (dart:async/Future.wait
-                      (mapv #(store-node! % *buf) (.-pointers node))))
-            addr  (gen-addr)]
-        (vswap! *buf conj! [addr {:keys node-keys :addresses addrs}])
-        addr))))
+  (cond
+    ;; Sync leaf (BTSet) — direct field access, no await needed
+    (instance? set/Leaf node)
+    (let [node-keys (mapv serializable-datom (.-keys node))
+          addr      (gen-addr)]
+      (vswap! *buf conj! [addr {:keys node-keys}])
+      addr)
+
+    ;; Sync internal node (BTSet) — recurse into children
+    (instance? set/Node node)
+    (let [node-keys (mapv serializable-datom (.-keys node))
+          addrs     (dart/await
+                      (dart:async/Future.wait
+                        (mapv #(store-node! % *buf) (.-pointers node))))
+          addr      (gen-addr)]
+      (vswap! *buf conj! [addr {:keys node-keys :addresses addrs}])
+      addr)
+
+    ;; Async node (AsyncBTSet) — materialize first, then dispatch
+    :else
+    (let [node      (dart/await (async-set/async-node-materialize node))
+          node-keys (mapv serializable-datom (.-keys node))]
+      (if (instance? async-set/AsyncLeaf node)
+        (let [addr (gen-addr)]
+          (vswap! *buf conj! [addr {:keys node-keys}])
+          addr)
+        (let [addrs (dart/await
+                      (dart:async/Future.wait
+                        (mapv #(store-node! % *buf) (.-pointers node))))
+              addr  (gen-addr)]
+          (vswap! *buf conj! [addr {:keys node-keys :addresses addrs}])
+          addr)))))
 
 (defn store-impl!
   ([db s]
@@ -99,8 +120,10 @@
 
 (defn- load-btset [s root-addr cnt cmp]
   (when-some [root-data (dart/await (-restore s root-addr))]
-    (let [storage (make-ds-storage s)]
-      (async-set/async-from-root (build-node storage root-data) cnt cmp))))
+    (let [storage'    (make-ds-storage s)
+          async-btset (async-set/async-from-root (build-node storage' root-data) cnt cmp)
+          all-datoms  (dart/await (async-set/async-slice async-btset nil nil))]
+      (set/from-sequential cmp all-datoms))))
 
 (defn restore-impl
   ([s]
@@ -112,9 +135,9 @@
      (let [tail (dart/await (-restore s tail-addr))
            db (db/restore-db
                 {:schema schema
-                 :eavt (dart/await (load-btset s (:root-addr eavt) (:cnt eavt) db/cmp-datoms-eavt))
-                 :aevt (dart/await (load-btset s (:root-addr aevt) (:cnt aevt) db/cmp-datoms-aevt))
-                 :avet (dart/await (load-btset s (:root-addr avet) (:cnt avet) db/cmp-datoms-avet))
+                 :eavt (dart/await (load-btset s (:root-addr eavt) (:cnt eavt) db/cmp-datoms-eavt-cmp))
+                 :aevt (dart/await (load-btset s (:root-addr aevt) (:cnt aevt) db/cmp-datoms-aevt-cmp))
+                 :avet (dart/await (load-btset s (:root-addr avet) (:cnt avet) db/cmp-datoms-avet-cmp))
                  :max-eid max-eid
                  :max-tx max-tx})]
        [db (mapv #(mapv restore-datom %) (or tail []))]))))
@@ -202,3 +225,79 @@
    (dart/await
      (let [{:keys [ports]} (dart/await (di/spawn! (db-isolate-fn make-storage schema opts)))]
        (:in ports)))))
+
+;; ---- In-process async conn ----
+;;
+;; A simpler alternative to spawn-db! that lives in the same Dart isolate.
+;; - open-conn! restores or creates the DB (async, returns Future<AsyncConn>)
+;; - transact! updates DB synchronously and flushes to storage asynchronously
+;; - @conn always gives the current DB value
+;; - d/q, d/pull, d/datoms etc. work directly on @conn
+
+(deftype AsyncConn [state-atom]
+  cljd.core/IDeref
+  (-deref [_] (:db @state-atom)))
+
+(defn open-conn!
+  "Create or restore a DataScript connection backed by persistent storage.
+   `make-storage` is a 0-arg fn returning an IStorage implementation.
+   Returns Future<AsyncConn>."
+  ([make-storage]
+   (open-conn! make-storage nil {}))
+  ([make-storage schema]
+   (open-conn! make-storage schema {}))
+  ([make-storage schema opts]
+   (let [s                       (make-storage)
+         [stored-db stored-tail] (or (dart/await (restore-impl s opts)) [nil []])
+         db                      (if stored-db
+                                   (db-with-tail stored-db stored-tail)
+                                   (db/empty-db schema opts))]
+     (->AsyncConn
+       (atom {:db             db
+              :storage        s
+              :tx-tail        (or stored-tail [])
+              :db-last-stored (or stored-db db)
+              :listeners      {}})))))
+
+(defn transact!
+  "Transact tx-data into conn. Returns Future<TxReport>."
+  ([^AsyncConn conn tx-data]
+   (transact! conn tx-data nil))
+  ([^AsyncConn conn tx-data tx-meta]
+   (let [state-atom (.-state-atom conn)
+         state      @state-atom
+         s          (:storage state)
+         report     (transact-report (:db state) tx-data tx-meta)
+         db'        (:db-after report)]
+     (swap! state-atom assoc :db db')
+     (when-not (empty? (:tx-data report))
+       (let [tx-tail (:tx-tail (swap! state-atom update :tx-tail conj (:tx-data report)))]
+         (if (> (transduce (map count) + 0 tx-tail) async-set/max-len)
+           (do
+             (dart/await (store-impl! db' s false))
+             (swap! state-atom assoc :tx-tail [] :db-last-stored db'))
+           (dart/await (store-tail* s tx-tail)))))
+     (doseq [[_ cb] (:listeners @state-atom)]
+       (cb report))
+     report)))
+
+(defn store!
+  "Force flush the current DB to storage. Returns Future<nil>."
+  [^AsyncConn conn]
+  (let [state-atom (.-state-atom conn)
+        state      @state-atom]
+    (dart/await (store-impl! (:db state) (:storage state) false))
+    (swap! state-atom assoc :tx-tail [] :db-last-stored (:db state))))
+
+(defn listen!
+  "Register a `(fn [tx-report])` callback on conn. Returns key."
+  ([^AsyncConn conn callback]
+   (listen! conn (rand) callback))
+  ([^AsyncConn conn key callback]
+   (swap! (.-state-atom conn) update :listeners assoc key callback)
+   key))
+
+(defn unlisten!
+  "Deregister a listener by key."
+  [^AsyncConn conn key]
+  (swap! (.-state-atom conn) update :listeners dissoc key))

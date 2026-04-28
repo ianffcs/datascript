@@ -563,7 +563,7 @@
 
 #?(:cljd
    (defmacro defcomp [sym [arg1 arg2] & body]
-     `(defn ~sym [~arg1 ~arg2]
+     `(defn ~sym ^int [~arg1 ~arg2]
         ~@body))
    :clj
    (defmacro defcomp [sym [arg1 arg2] & body]
@@ -651,6 +651,15 @@
     (value-compare (.-v d1) (.-v d2))
     (int-compare (.-e d1) (.-e d2))
     (int-compare (datom-tx d1) (datom-tx d2))))
+
+#?(:cljd
+   (do
+     (def cmp-datoms-eavt-cmp       (set/as-cmp cmp-datoms-eavt))
+     (def cmp-datoms-aevt-cmp       (set/as-cmp cmp-datoms-aevt))
+     (def cmp-datoms-avet-cmp       (set/as-cmp cmp-datoms-avet))
+     (def cmp-datoms-eavt-quick-cmp (set/as-cmp cmp-datoms-eavt-quick))
+     (def cmp-datoms-aevt-quick-cmp (set/as-cmp cmp-datoms-aevt-quick))
+     (def cmp-datoms-avet-quick-cmp (set/as-cmp cmp-datoms-avet-quick))))
 
 (defn- diff-sorted [a b cmp]
   (loop [only-a []
@@ -880,7 +889,7 @@
   (-datoms [db index c0 c1 c2 c3]
     (validate-indexed db index c0 c1 c2 c3)
     #?(:cljd
-       (set-slice (get db index)
+       (set-slice (case index :eavt (.-eavt db) :aevt (.-aevt db) :avet (.-avet db))
          (components->pattern db index c0 c1 c2 c3 e0 tx0)
          (components->pattern db index c0 c1 c2 c3 emax txmax))
        :default
@@ -891,7 +900,7 @@
   (-seek-datoms [db index c0 c1 c2 c3]
     (validate-indexed db index c0 c1 c2 c3)
     #?(:cljd
-       (set-slice (get db index)
+       (set-slice (case index :eavt (.-eavt db) :aevt (.-aevt db) :avet (.-avet db))
          (components->pattern db index c0 c1 c2 c3 e0 tx0)
          (datom emax nil nil txmax))
        :default
@@ -902,7 +911,7 @@
   (-rseek-datoms [db index c0 c1 c2 c3]
     (validate-indexed db index c0 c1 c2 c3)
     #?(:cljd
-       (set-rslice (get db index)
+       (set-rslice (case index :eavt (.-eavt db) :aevt (.-aevt db) :avet (.-avet db))
          (components->pattern db index c0 c1 c2 c3 emax txmax)
          (datom e0 nil nil tx0))
        :default
@@ -1142,9 +1151,9 @@
   (map->DB
    {:schema        schema
     :rschema       (rschema (merge implicit-schema schema))
-    :eavt          (set/sorted-set* (assoc opts :cmp cmp-datoms-eavt))
-    :aevt          (set/sorted-set* (assoc opts :cmp cmp-datoms-aevt))
-    :avet          (set/sorted-set* (assoc opts :cmp cmp-datoms-avet))
+    :eavt          (set/sorted-set* (assoc opts :cmp #?(:cljd cmp-datoms-eavt-cmp :default cmp-datoms-eavt)))
+    :aevt          (set/sorted-set* (assoc opts :cmp #?(:cljd cmp-datoms-aevt-cmp :default cmp-datoms-aevt)))
+    :avet          (set/sorted-set* (assoc opts :cmp #?(:cljd cmp-datoms-avet-cmp :default cmp-datoms-avet)))
     :max-eid       e0
     :max-tx        tx0
     :pull-patterns (lru/cache 100)
@@ -1177,14 +1186,14 @@
                             :default (cond-> datoms
                                        (not (arrays/array? datoms)) (arrays/into-array)))
              _           (arrays/asort arr cmp-datoms-eavt-quick)
-             eavt        (set/from-sorted-array cmp-datoms-eavt arr (arrays/alength arr) opts)
+             eavt        (set/from-sorted-array #?(:cljd cmp-datoms-eavt-cmp :default cmp-datoms-eavt) arr (arrays/alength arr) opts)
              _           (arrays/asort arr cmp-datoms-aevt-quick)
-             aevt        (set/from-sorted-array cmp-datoms-aevt arr (arrays/alength arr) opts)
+             aevt        (set/from-sorted-array #?(:cljd cmp-datoms-aevt-cmp :default cmp-datoms-aevt) arr (arrays/alength arr) opts)
              avet-datoms (filter (fn [^Datom d] (contains? indexed (.-a d))) datoms)
              avet-arr    #?(:cljd (arrays/into-array avet-datoms)
                             :default (to-array avet-datoms))
              _           (arrays/asort avet-arr cmp-datoms-avet-quick)
-             avet        (set/from-sorted-array cmp-datoms-avet avet-arr (arrays/alength avet-arr) opts)])
+             avet        (set/from-sorted-array #?(:cljd cmp-datoms-avet-cmp :default cmp-datoms-avet) avet-arr (arrays/alength avet-arr) opts)])
         max-eid     (init-max-eid eavt)
         max-tx      (transduce (map (fn [^Datom d] (datom-tx d))) max tx0 eavt)]
     (map->DB
@@ -1318,16 +1327,19 @@
 
 (defn find-datom [db index c0 c1 c2 c3]
   (validate-indexed db index c0 c1 c2 c3)
-  (let [set     (get db index)
-        cmp     #?(:cljd (.-comparator set)
-                   :clj (.comparator ^clojure.lang.Sorted set) :cljs (.-comparator set))
-        from    #?(:cljd (min-datom (components->pattern db index c0 c1 c2 c3 e0 tx0))
-                   :default (components->pattern db index c0 c1 c2 c3 e0 tx0))
-        to      #?(:cljd (max-datom (components->pattern db index c0 c1 c2 c3 emax txmax))
-                   :default (components->pattern db index c0 c1 c2 c3 emax txmax))
-        datom   (first (set/seek (seq set) from))]
-    (when (and (some? datom) (<= 0 (cmp to datom)))
-      datom)))
+  #?(:cljd
+     (let [s    (case index :eavt (.-eavt db) :aevt (.-aevt db) :avet (.-avet db))
+           from (components->pattern db index c0 c1 c2 c3 e0 tx0)
+           to   (components->pattern db index c0 c1 c2 c3 emax txmax)]
+       (first (set-slice s from to)))
+     :default
+     (let [set   (get db index)
+           cmp   #?(:clj (.comparator ^clojure.lang.Sorted set) :cljs (.-comparator set))
+           from  (components->pattern db index c0 c1 c2 c3 e0 tx0)
+           to    (components->pattern db index c0 c1 c2 c3 emax txmax)
+           datom (first (set/seek (seq set) from))]
+       (when (and (some? datom) (<= 0 (cmp to datom)))
+         datom))))
 
 ;; ----------------------------------------------------------------------------
 
@@ -1484,16 +1496,16 @@
   (let [indexing? (indexing? db (.-a datom))]
     (if (datom-added datom)
       (cond-> db
-        true      (update :eavt set/conj datom cmp-datoms-eavt-quick)
-        true      (update :aevt set/conj datom cmp-datoms-aevt-quick)
-        indexing? (update :avet set/conj datom cmp-datoms-avet-quick)
+        true      (update :eavt set/conj datom #?(:cljd cmp-datoms-eavt-quick-cmp :default cmp-datoms-eavt-quick))
+        true      (update :aevt set/conj datom #?(:cljd cmp-datoms-aevt-quick-cmp :default cmp-datoms-aevt-quick))
+        indexing? (update :avet set/conj datom #?(:cljd cmp-datoms-avet-quick-cmp :default cmp-datoms-avet-quick))
         true      (advance-max-eid (.-e datom))
         true      (assoc :hash (atom 0)))
       (if-some [removing (fsearch db [(.-e datom) (.-a datom) (.-v datom)])]
         (cond-> db
-          true      (update :eavt set/disj removing cmp-datoms-eavt-quick)
-          true      (update :aevt set/disj removing cmp-datoms-aevt-quick)
-          indexing? (update :avet set/disj removing cmp-datoms-avet-quick)
+          true      (update :eavt set/disj removing #?(:cljd cmp-datoms-eavt-quick-cmp :default cmp-datoms-eavt-quick))
+          true      (update :aevt set/disj removing #?(:cljd cmp-datoms-aevt-quick-cmp :default cmp-datoms-aevt-quick))
+          indexing? (update :avet set/disj removing #?(:cljd cmp-datoms-avet-quick-cmp :default cmp-datoms-avet-quick))
           true      (assoc :hash (atom 0)))
         db))))
 
