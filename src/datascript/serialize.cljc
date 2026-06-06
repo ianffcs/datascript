@@ -182,7 +182,7 @@
                     (cond
                       (== ##Inf v) (array marker-inf)
                       (== ##-Inf v) (array marker-minus-inf)
-                      #?(:cljd (.-isNaN ^num v) :clj (Double/isNaN v) :cljs (js/isNaN v)) (array marker-nan)
+                      #?(:cljd (-> ^num v .-isNaN) :clj (Double/isNaN v) :cljs (js/isNaN v)) (array marker-nan)
                       :else v)
 
                     (boolean? v) v
@@ -247,34 +247,34 @@
          _ (#'db/validate-schema schema)
          attrs (->> (dict-get from "attrs") (mapv thaw-kw))
          keywords (->> (dict-get from "keywords") (mapv thaw-kw))
-         eavt (->> (dict-get from "eavt")
-                   ;; TODO: why amap and then into array again??
-                   ;; possibly for clojure? can't see why cljs would benefit
-                   (#?(:cljd    amap-in-place
-                       :default amap) (fn [arr]
-                                        (let [e (array-get arr 0)
-                                              a (nth attrs (array-get arr 1))
-                                              v (array-get arr 2)
-                                              v (cond
-                                                  (number? v) v
-                                                  (string? v) v
-                                                  (boolean? v) v
-                                                  (array? v) (let [marker (array-get v 0)]
-                                                               (condp == marker
-                                                                 marker-kw (nth keywords (array-get v 1))
-                                                                 marker-other (thaw-fn (array-get v 1))
-                                                                 marker-inf ##Inf
-                                                                 marker-minus-inf ##-Inf
-                                                                 marker-nan ##NaN
-                                                                 (db/raise "Unexpected value marker " marker " in " (pr-str v)
-                                                                           {:error :serialize :value v})))
-                                                  true (db/raise "Unexpected value type (" (pr-str v) ")"
-                                                                 {:error :serialize :value v}))
-                                              tx (+ tx0 (array-get arr 3))]
-                                          (db/datom e a v tx))))
-                   #?(:cljd do :clj arrays/into-array))
-         aevt (some->> (dict-get from "aevt") (amap #(#?(:cljd aget :default arrays/aget) eavt %)) #?(:cljd do :clj arrays/into-array))
-         avet (some->> (dict-get from "avet") (amap #(#?(:cljd aget :default arrays/aget) eavt %)) #?(:cljd do :clj arrays/into-array))
+         #?(:cljd ^List eavt :default eavt) (->> (dict-get from "eavt")
+                                            ;; TODO: why amap and then into array again??
+                                            ;; possibly for clojure? can't see why cljs would benefit
+                                            (#?(:cljd    amap-in-place
+                                                :default amap) (fn [arr]
+                                                                 (let [e (array-get arr 0)
+                                                                       a (nth attrs (array-get arr 1))
+                                                                       v (array-get arr 2)
+                                                                       v (cond
+                                                                           (number? v) v
+                                                                           (string? v) v
+                                                                           (boolean? v) v
+                                                                           (array? v) (let [marker (array-get v 0)]
+                                                                                        (condp == marker
+                                                                                          marker-kw (nth keywords (array-get v 1))
+                                                                                          marker-other (thaw-fn (array-get v 1))
+                                                                                          marker-inf ##Inf
+                                                                                          marker-minus-inf ##-Inf
+                                                                                          marker-nan ##NaN
+                                                                                          (db/raise "Unexpected value marker " marker " in " (pr-str v)
+                                                                                                    {:error :serialize :value v})))
+                                                                           true (db/raise "Unexpected value type (" (pr-str v) ")"
+                                                                                          {:error :serialize :value v}))
+                                                                       tx (+ tx0 (array-get arr 3))]
+                                                                   (db/datom e a v tx))))
+                                            #?(:cljd do :clj arrays/into-array))
+         #?(:cljd ^List aevt :default aevt) (some->> (dict-get from "aevt") (amap #(#?(:cljd aget :default arrays/aget) eavt %)) #?(:cljd do :clj arrays/into-array))
+         #?(:cljd ^List avet :default avet) (some->> (dict-get from "avet") (amap #(#?(:cljd aget :default arrays/aget) eavt %)) #?(:cljd do :clj arrays/into-array))
          settings (merge
                     {:branching-factor (dict-get from "branching-factor")
                      :ref-type         (some-> (dict-get from "ref-type") keyword)}
@@ -286,4 +286,3 @@
         :avet    (set/from-sorted-array db/cmp-datoms-avet avet (arrays/alength avet) settings)
         :max-eid (dict-get from "max-eid")
         :max-tx  (dict-get from "max-tx")}))))
-

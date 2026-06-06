@@ -383,20 +383,20 @@
      (let [{^Context context :context
             ^PullPattern pattern :pattern} parsed-opts]
        (when-some [eid (db/entid (.-db context) id)]
-         (let [stack (.empty #/(List dynamic) .growable true)]
+         (let [^List stack (.empty #/(List dynamic) .growable true)]
            (.add stack (attrs-frame context #{} {} pattern eid))
            (loop []
              (let [top (.removeLast stack)]
                (if (instance? ResultFrame top)
-                 (if (.isEmpty stack)
+                 (if (.-isEmpty stack)
                    (.-value ^ResultFrame top)
                    (do
                      (.add stack (-merge (.removeLast stack) top))
                      (recur)))
-                 (let [result (-run top context)]
-                   (.add stack (. result "[]" 0))
+                 (let [^List result (-run top context)]
+                   (.add stack (aget result 0))
                    (when (> (.-length result) 1)
-                     (.add stack (. result "[]" 1)))
+                     (.add stack (aget result 1)))
                    (recur)))))))))
    :default
    (defn pull-impl [parsed-opts id]

@@ -42,14 +42,16 @@
   (cond
     ;; Sync leaf (BTSet) — direct field access, no await needed
     (instance? set/Leaf node)
-    (let [node-keys (mapv serializable-datom (.-keys node))
+    (let [^set/Leaf node node
+          node-keys (mapv serializable-datom (.-keys node))
           addr      (gen-addr)]
       (vswap! *buf conj! [addr {:keys node-keys}])
       addr)
 
     ;; Sync internal node (BTSet) — recurse into children
     (instance? set/Node node)
-    (let [node-keys (mapv serializable-datom (.-keys node))
+    (let [^set/Node node node
+          node-keys (mapv serializable-datom (.-keys node))
           addrs     (dart/await
                       (dart:async/Future.wait
                         (mapv #(store-node! % *buf) (.-pointers node))))
@@ -59,13 +61,16 @@
 
     ;; Async node (AsyncBTSet) — materialize first, then dispatch
     :else
-    (let [node      (dart/await (async-set/async-node-materialize node))
-          node-keys (mapv serializable-datom (.-keys node))]
+    (let [node (dart/await (async-set/async-node-materialize node))]
       (if (instance? async-set/AsyncLeaf node)
-        (let [addr (gen-addr)]
+        (let [^async-set/AsyncLeaf node node
+              node-keys (mapv serializable-datom (.-keys node))
+              addr (gen-addr)]
           (vswap! *buf conj! [addr {:keys node-keys}])
           addr)
-        (let [addrs (dart/await
+        (let [^async-set/AsyncNode node node
+              node-keys (mapv serializable-datom (.-keys node))
+              addrs (dart/await
                       (dart:async/Future.wait
                         (mapv #(store-node! % *buf) (.-pointers node))))
               addr  (gen-addr)]
@@ -78,6 +83,9 @@
   ([db s _force?]
    (let [{:keys [eavt aevt avet schema max-eid max-tx]} db
          *buf      (volatile! (transient []))
+         ^set/BTSet eavt eavt
+         ^set/BTSet aevt aevt
+         ^set/BTSet avet avet
          eavt-addr (dart/await (store-node! (.-root eavt) *buf))
          aevt-addr (dart/await (store-node! (.-root aevt) *buf))
          avet-addr (dart/await (store-node! (.-root avet) *buf))

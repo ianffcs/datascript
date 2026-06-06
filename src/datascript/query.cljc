@@ -354,7 +354,7 @@
                        (do
                          (aset arr i ((aget getters-arr i) tuple))
                          (recur (inc i)))
-                       (-vec-owning arr)))))
+                       (vec arr)))))
                :clj
                (fn [tuple]
                  (let [^objects arr (clojure.core/make-array Object n)]

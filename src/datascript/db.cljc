@@ -1325,10 +1325,10 @@
     :aevt (resolve-datom db c1 c0 c2 c3 default-e default-tx)
     :avet (resolve-datom db c2 c0 c1 c3 default-e default-tx)))
 
-(defn find-datom [db index c0 c1 c2 c3]
+(defn find-datom [#?(:cljd ^DB db :default db) index c0 c1 c2 c3]
   (validate-indexed db index c0 c1 c2 c3)
   #?(:cljd
-     (let [s    (case index :eavt (.-eavt db) :aevt (.-aevt db) :avet (.-avet db))
+     (let [s    ^set/BTSet (case index :eavt (.-eavt db) :aevt (.-aevt db) :avet (.-avet db))
            from (components->pattern db index c0 c1 c2 c3 e0 tx0)
            to   (components->pattern db index c0 c1 c2 c3 emax txmax)]
        (first (set-slice s from to)))

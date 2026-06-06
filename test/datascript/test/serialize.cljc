@@ -149,7 +149,8 @@
   (let [db (d/db-with
              (d/empty-db schema)
              [[:db/add 1 :nan ##NaN]])
-        valid? #(-> (:nan (d/entity % 1)) #?(:cljd .-isNaN :clj Double/isNaN :cljs js/isNaN))]
+        valid? #(let [nan (:nan (d/entity % 1))]
+                  #?(:cljd (-> ^num nan .-isNaN) :clj (Double/isNaN nan) :cljs (js/isNaN nan)))]
     (is (valid? (-> db d/serializable d/from-serializable)))
     (is (valid? (-> db d/serializable pr-str edn/read-string d/from-serializable)))
     (is (valid? (-> db (d/serializable {:freeze-fn tdc/transit-write-str}) pr-str edn/read-string (d/from-serializable {:thaw-fn tdc/transit-read-str}))))

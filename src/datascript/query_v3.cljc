@@ -27,7 +27,7 @@
 
 (declare resolve-clauses collect-rel-xf collect-to)
 
-(def ^:const lru-cache-size 100)
+(def #?(:cljd lru-cache-size :default ^:const lru-cache-size) 100)
 
 (defn mapa [f coll]
   (to-array (map f coll)))
@@ -231,7 +231,7 @@
 
 ;;; ArrayRelation
 
-(defn pr-rel [rel w]
+(defn pr-rel [rel #?(:cljd ^StringBuffer w :default w)]
   (doto w
     (.write "#")
     (.write #?(:clj  (.getSimpleName ^Class (class rel))
@@ -259,7 +259,7 @@
         (#?(:cljd get :default da/aget) tuple idx))))
   (-indexes [_ syms]
     (mapa offset-map syms))
-  (-copy-tuple [_ tuple idxs target target-idxs]
+  (-copy-tuple [_ tuple idxs #?(:cljd ^List target :default target) target-idxs]
     (dotimes [i (#?(:cljd count :default da/alength) idxs)]
       (#?(:cljd aset :default da/aset) target (#?(:cljd get :default da/aget) target-idxs i) (#?(:cljd get :default da/aget) tuple (#?(:cljd get :default da/aget) idxs i)))))
   (-union [_ rel]
@@ -293,7 +293,7 @@
         (nth tuple idx))))
   (-indexes [_ syms]
     (mapa offset-map syms))
-  (-copy-tuple [_ tuple idxs target target-idxs]
+  (-copy-tuple [_ tuple idxs #?(:cljd ^List target :default target) target-idxs]
     (dotimes [i (#?(:cljd count :default da/alength) idxs)]
       (#?(:cljd aset :default da/aset) target (#?(:cljd get :default da/aget) target-idxs i) (nth tuple (#?(:cljd get :default da/aget) idxs i)))))
   (-union [_ rel]
@@ -481,7 +481,9 @@
     BindScalar
     (let [symbol (get-in binding [:variable :symbol])
           idx    (get indexes symbol)]
-      (run! #(#?(:cljd aset :default da/aset) % idx source) tuples)
+      (run! (fn [#?(:cljd ^List tuple :default tuple)]
+              (#?(:cljd aset :default da/aset) tuple idx source))
+            tuples)
       tuples)
 
     BindColl
@@ -761,7 +763,7 @@
                 rel    (array-rel non-consts (into (first arrays) cat (next arrays)))]
             (hash-join-rel context rel)))))))
 
-(defn collect-args! [context args target form]
+(defn collect-args! [context args #?(:cljd ^List target :default target) form]
   (let [consts  (:consts context)
         sources (:sources context)]
     (doseq [[arg i] (zip args (range))
@@ -870,7 +872,7 @@
                   context*))))
     context clauses))
 
-(defn collect-consts [syms-indexed specimen consts]
+(defn collect-consts [syms-indexed #?(:cljd ^List specimen :default specimen) consts]
   (doseq [[sym i] syms-indexed]
     (when (contains? consts sym)
       (let [val (get consts sym)]
